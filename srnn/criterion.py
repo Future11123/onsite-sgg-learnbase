@@ -82,6 +82,56 @@ def Gaussian2DLikelihood(outputs, targets, nodesPresent, obs_length, seq_length,
             if framenum >= 1 and framenum <= (seq_length - 2):
                 yaw_val = yaw_rate[framenum - 1, nodeID]
                 current_dynamics_loss += torch.clamp(torch.abs(yaw_val) - 0.5, min=0)
+
+
+            # ========== 调试代码插入位置 ========== #
+            current_dynamics_loss = 0
+            debug_info = []  # 用于记录调试信息
+
+            # 检查纵向和横向加速度
+            if framenum >= 1 and framenum <= (seq_length - 2):
+                a_lon_val = a_lon[framenum - 1, nodeID]
+                a_lat_val = a_lat[framenum - 1, nodeID]
+
+                # 记录原始值和约束触发量
+                debug_info.append(f"Frame={framenum}, Node={nodeID}")
+                debug_info.append(f"  a_lon={a_lon_val.item():.4f} (阈值±3)")
+                debug_info.append(f"  a_lat={a_lat_val.item():.4f} (阈值±0.5)")
+
+                # 计算约束损失
+                a_lon_loss = torch.clamp(torch.abs(a_lon_val) - 3, min=0)
+                a_lat_loss = torch.clamp(torch.abs(a_lat_val) - 0.5, min=0)
+                current_dynamics_loss += a_lon_loss + a_lat_loss
+                debug_info.append(f"  a_loss: lon={a_lon_loss.item():.4f}, lat={a_lat_loss.item():.4f}")
+
+            # 检查加加速度
+            if framenum >= 2 and framenum <= (seq_length - 3):
+                jerk_lon_val = jerk_lon[framenum - 2, nodeID]
+                jerk_lat_val = jerk_lat[framenum - 2, nodeID]
+
+                debug_info.append(f"  jerk_lon={jerk_lon_val.item():.4f} (阈值±6)")
+                debug_info.append(f"  jerk_lat={jerk_lat_val.item():.4f} (阈值±1)")
+
+                jerk_lon_loss = torch.clamp(torch.abs(jerk_lon_val) - 6, min=0)
+                jerk_lat_loss = torch.clamp(torch.abs(jerk_lat_val) - 1, min=0)
+                current_dynamics_loss += jerk_lon_loss + jerk_lat_loss
+                debug_info.append(f"  jerk_loss: lon={jerk_lon_loss.item():.4f}, lat={jerk_lat_loss.item():.4f}")
+
+            # 检查横摆角速度
+            if framenum >= 1 and framenum <= (seq_length - 2):
+                yaw_val = yaw_rate[framenum - 1, nodeID]
+
+                debug_info.append(f"  yaw_rate={yaw_val.item():.4f} (阈值±0.5)")
+                yaw_loss = torch.clamp(torch.abs(yaw_val) - 0.5, min=0)
+                current_dynamics_loss += yaw_loss
+                debug_info.append(f"  yaw_loss={yaw_loss.item():.4f}")
+
+            # 打印调试信息（仅在触发约束时打印）
+            if current_dynamics_loss > 0:
+                print("\n".join(debug_info))
+
+            # ========== 调试代码插入位置 ========== #
+
             loss_dynamics += current_dynamics_loss
             counter += 1
 
