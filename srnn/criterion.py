@@ -8,9 +8,13 @@ from helper import getCoef
 # 增加动力学约束损失函数
 def Gaussian2DLikelihood(outputs, targets, nodesPresent, obs_length, seq_length, dataset_index):
     nodesPresent = [[m[0] for m in t] for t in nodesPresent]
+    # Get the observed length
     seq_length = seq_length[dataset_index]
 
+    # Extract mean, std devs and correlation
     mux, muy, sx, sy, corr = getCoef(outputs)
+
+    # Compute factors
     normx = targets[:, :, 0] - mux
     normy = targets[:, :, 1] - muy
     sxsy = sx * sy
@@ -20,16 +24,22 @@ def Gaussian2DLikelihood(outputs, targets, nodesPresent, obs_length, seq_length,
         - 2 * ((corr * normx * normy) / sxsy)
     )
     negRho = 1 - torch.pow(corr, 2)
+
+    # Numerator
     result = torch.exp(-z / (2 * negRho))
+
+    # Normalization factor
     denom = 2 * np.pi * (sxsy * torch.sqrt(negRho))
     result = result / denom
     epsilon = 1e-20
     result_pos = -torch.log(torch.clamp(result, min=epsilon))
 
+    # Compute heading loss 增加航向损失
     pred_heading = outputs[:, :, 5]
     target_heading = targets[:, :, 2]
-    heading_loss = torch.abs(pred_heading - target_heading)
+    heading_loss = torch.abs(pred_heading - target_heading)# 简单的绝对误差损失，可根据需求调整
 
+   # Compute the loss across all frames and all nodes
     loss_pos = 0
     loss_heading = 0
     loss_dynamics = 0  # 动力学损失
