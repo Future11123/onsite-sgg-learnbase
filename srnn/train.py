@@ -448,9 +448,3 @@ def train(args):
 if __name__ == "__main__":
     set_logger(os.path.join("./", "train.log"))
     main()
-
-
-print("1")
-print("1")
-print("1")
-print("2")
