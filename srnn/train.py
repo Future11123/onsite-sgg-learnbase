@@ -11,23 +11,10 @@ from criterion import Gaussian2DLikelihood
 from model import SRNN
 from st_graph import ST_GRAPH
 from utils import DataLoader, set_logger
+import helper
 
 os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 
-
-def denormalize(normalized_value, feature_type, norm_params):
-    # 修改后的逻辑
-    if feature_type == 'position_x':
-        min_val, max_val = norm_params['position']['x']
-    elif feature_type == 'position_y':
-        min_val, max_val = norm_params['position']['y']
-    elif feature_type == 'heading':
-        min_val, max_val = norm_params['heading']
-    else:
-        raise KeyError(f"特征类型 {feature_type} 不在参数中")
-
-    # 反归一化公式（与之前的归一化公式对应）
-    return (normalized_value + 1) * (max_val - min_val) / 2 + min_val
 
 
 def main():
@@ -287,31 +274,15 @@ def train(args):
                     current_seq_length,
                 )
 
-                # 反归一化真实值 (nodes)
-                nodes_real_denorm = nodes.clone()
-                nodes_real_denorm[:, :, 0] = denormalize(nodes[:, :, 0], 'position_x', norm_params)
-                nodes_real_denorm[:, :, 1] = denormalize(nodes[:, :, 1], 'position_y', norm_params)
-                nodes_real_denorm[:, :, 2] = denormalize(nodes[:, :, 2], 'heading', norm_params)
-
-                # 反归一化预测值 (outputs)
-                outputs_denorm = outputs.clone()
-                outputs_denorm[:, :, 0] = denormalize(outputs[:, :, 0], 'position_x', norm_params)  # mux
-                outputs_denorm[:, :, 1] = denormalize(outputs[:, :, 1], 'position_y', norm_params)  # muy
-                outputs_denorm[:, :, 5] = denormalize(outputs[:, :, 5], 'heading', norm_params)  # pred_heading
-                print("反归一化验证:")
-                print(
-                    f"预测x范围: [{outputs_denorm[:, :, 0].min().item():.2f}, {outputs_denorm[:, :, 0].max().item():.2f}]")
-                print(
-                    f"真实x范围: [{nodes_real_denorm[:, :, 0].min().item():.2f}, {nodes_real_denorm[:, :, 0].max().item():.2f}]")
 
                 # 使用反归一化后的数据计算损失
                 loss = Gaussian2DLikelihood(
-                    outputs_denorm,  # 使用反归一化后的预测值
-                    nodes_real_denorm[:],  # 使用反归一化后的真实值
+                    outputs,  # 使用反归一化后的预测值
+                    nodes[:],  # 使用反归一化后的真实值
                     nodesPresent[:],
                     args.obs_length,
                     seq_length,
-                    d[0]
+                    d[0],args,nodes,norm_params
                 )
                 # Compute loss
                 # loss = Gaussian2DLikelihood(

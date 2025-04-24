@@ -1,18 +1,26 @@
 import numpy as np
 import torch
-from torch.autograd import Variable
-from utils import DataLoader
-from helper import getCoef
-
-import numpy as np
-import torch
 import torch.nn.functional as F
 from torch.autograd import Variable
 from utils import DataLoader
-from helper import getCoef
+from helper import getCoef,sample_gaussian_2d
+
+def denormalize(normalized_value, feature_type, norm_params):
+    # 修改后的逻辑
+    if feature_type == 'position_x':
+        min_val, max_val = norm_params['position']['x']
+    elif feature_type == 'position_y':
+        min_val, max_val = norm_params['position']['y']
+    elif feature_type == 'heading':
+        min_val, max_val = norm_params['heading']
+    else:
+        raise KeyError(f"特征类型 {feature_type} 不在参数中")
+
+    # 反归一化公式（与之前的归一化公式对应）
+    return (normalized_value + 1) * (max_val - min_val) / 2 + min_val
 
 
-def Gaussian2DLikelihood(outputs, targets, nodesPresent, obs_length, seq_length, dataset_index):
+def Gaussian2DLikelihood(outputs, targets, nodesPresent, obs_length, seq_length, dataset_index, args,nodes,norm_params):
     """
     完整轨迹预测损失函数，包含：
     - 原始高斯似然损失
@@ -20,15 +28,40 @@ def Gaussian2DLikelihood(outputs, targets, nodesPresent, obs_length, seq_length,
     - 动力学约束损失
     - 运动状态分布一致性损失（基于核密度估计）
     """
+    # 获取分布参数
+    mux, muy, sx, sy, corr = getCoef(outputs)
+    next_x, next_y = sample_gaussian_2d(
+        mux.data,
+        muy.data,
+        sx.data,
+        sy.data,
+        corr.data,
+        nodesPresent[args.obs_length - 1],
+    )
+    # 反归一化真实值 (nodes)
+    nodes_real_denorm = nodes.clone()
+    nodes_real_denorm[:, :, 0] = denormalize(nodes[:, :, 0], 'position_x', norm_params)
+    nodes_real_denorm[:, :, 1] = denormalize(nodes[:, :, 1], 'position_y', norm_params)
+    nodes_real_denorm[:, :, 2] = denormalize(nodes[:, :, 2], 'heading', norm_params)
+
+    # 反归一化预测值 (outputs)
+    outputs_denorm = outputs.clone()
+    outputs_denorm[:, :, 0] = denormalize(next_x, 'position_x', norm_params)  # mux
+    outputs_denorm[:, :, 1] = denormalize(next_y, 'position_y', norm_params)  # muy
+    outputs_denorm[:, :, 5] = denormalize(outputs[:, :, 5], 'heading', norm_params)  # pred_heading
+    print("反归一化验证:")
+    print(
+        f"预测x范围: [{outputs_denorm[:, :, 0].min().item():.2f}, {outputs_denorm[:, :, 0].max().item():.2f}]")
+    print(
+        f"真实x范围: [{nodes_real_denorm[:, :, 0].min().item():.2f}, {nodes_real_denorm[:, :, 0].max().item():.2f}]")
+
     # 原始节点存在信息处理（保留原始逻辑）
     nodesPresent = [[m[0] for m in t] for t in nodesPresent]
     seq_length = seq_length[dataset_index]
     device = outputs.device
+    device = outputs_denorm.device
 
     # ==================== 原始高斯似然计算 ====================
-    # 获取分布参数（保留原始实现）
-    mux, muy, sx, sy, corr = getCoef(outputs)
-
     # 计算高斯概率密度（保持原始公式）
     normx = targets[:, :, 0] - mux
     normy = targets[:, :, 1] - muy
@@ -54,11 +87,11 @@ def Gaussian2DLikelihood(outputs, targets, nodesPresent, obs_length, seq_length,
 
     # ==================== 动力学约束计算 ====================
     # 运动学参数计算（保留用户原始实现）
-    theta = outputs[:, :, 5]
+    theta = outputs_denorm[:, :, 5]
 
     # 速度计算（注意时间步范围）
-    v_x = outputs[1:, :, 0] - outputs[:-1, :, 0]
-    v_y = outputs[1:, :, 1] - outputs[:-1, :, 1]
+    v_x = outputs_denorm[1:, :, 0] - outputs_denorm[:-1, :, 0]
+    v_y = outputs_denorm[1:, :, 1] - outputs_denorm[:-1, :, 1]
 
     # 加速度计算（保持原始实现）
     a_x = v_x[1:] - v_x[:-1]
@@ -123,28 +156,28 @@ def Gaussian2DLikelihood(outputs, targets, nodesPresent, obs_length, seq_length,
         return F.kl_div(torch.log(pred_dist), real_dist, reduction='sum')
 
     # ==================== 运动特征提取 ====================
-    seq_len, num_nodes = targets.shape[:2]
+    seq_len, num_nodes = nodes_real_denorm.shape[:2]
     valid_mask = torch.zeros(seq_len, num_nodes, dtype=torch.bool, device=device)
     for t in range(seq_len):
         valid_nodes = [n for n in nodesPresent[t] if n < num_nodes]
         valid_mask[t, valid_nodes] = True
 
     # 真实运动特征
-    real_v = targets[1:, :, :2] - targets[:-1, :, :2]
+    real_v = nodes_real_denorm[1:, :, :2] - nodes_real_denorm[:-1, :, :2]
     real_speed = torch.norm(real_v, dim=2)
     speed_valid = valid_mask[1:] & valid_mask[:-1]
 
     real_a = real_v[1:] - real_v[:-1]
-    real_heading = targets[1:-1, :, 2]
+    real_heading = nodes_real_denorm[1:-1, :, 2]
     real_a_lon = (real_a[..., 0] * torch.cos(real_heading) +
                   real_a[..., 1] * torch.sin(real_heading))
     a_lon_valid = valid_mask[1:-1] & valid_mask[:-2] & valid_mask[2:]
 
-    real_yaw = targets[1:, :, 2] - targets[:-1, :, 2]
+    real_yaw = nodes_real_denorm[1:, :, 2] - nodes_real_denorm[:-1, :, 2]
     yaw_valid = valid_mask[1:] & valid_mask[:-1]
 
     # 预测运动特征
-    pred_speed = torch.norm(outputs[1:, :, :2] - outputs[:-1, :, :2], dim=2)
+    pred_speed = torch.norm(outputs_denorm[1:, :, :2] - outputs_denorm[:-1, :, :2], dim=2)
     pred_a_lon = a_lon
     pred_yaw = yaw_rate
 
@@ -231,18 +264,6 @@ def Gaussian2DLikelihood(outputs, targets, nodesPresent, obs_length, seq_length,
         return total_loss
     else:
         return 0.0
-
-
-# 保留原始注释的测试用损失函数
-"""
-def Gaussian2DLikelihoodInference(outputs, targets, assumedNodesPresent, nodesPresent, use_cuda):
-    推理用损失函数（实现略）
-"""
-
-
-
-
-
 
 
 
