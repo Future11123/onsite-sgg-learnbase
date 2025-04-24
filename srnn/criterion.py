@@ -233,6 +233,18 @@ def Gaussian2DLikelihood(outputs, targets, nodesPresent, obs_length, seq_length,
         return 0.0
 
 
+# 保留原始注释的测试用损失函数
+"""
+def Gaussian2DLikelihoodInference(outputs, targets, assumedNodesPresent, nodesPresent, use_cuda):
+    推理用损失函数（实现略）
+"""
+
+
+
+
+
+
+
 
 # # 增加动力学约束损失函数
 # def Gaussian2DLikelihood(outputs, targets, nodesPresent, obs_length, seq_length, dataset_index):

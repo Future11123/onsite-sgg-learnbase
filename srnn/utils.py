@@ -46,6 +46,12 @@ class DataLoader:
         datasets : The indices of the datasets to use
         forcePreProcess : Flag to forcefully preprocess the data again from csv files
         """
+        self.min_position_x = float('inf')
+        self.max_position_x = -float('inf')
+        self.min_position_y = float('inf')
+        self.max_position_y = -float('inf')
+        self.min_heading = float('inf')
+        self.max_heading = -float('inf')
 
         # random.seed(42)
         # np.random.seed(42)
@@ -73,9 +79,8 @@ class DataLoader:
         # If the file doesn't exist or forcePreProcess is true
         if not (os.path.exists(data_file)) or forcePreProcess:
             print("Creating pre-processed data from raw data")
-            # Preprocess the data from the csv files of the datasets
-            # Note that this data is processed in frames
             self.frame_preprocess(self.train_data_dirs, data_file)
+            print("预处理完成，归一化参数:", self.get_normalization_params())
 
         # Load the processed data from the pickle file
         self.load_preprocessed(data_file)
@@ -83,14 +88,25 @@ class DataLoader:
         self.reset_batch_pointer(valid=False)
         self.reset_batch_pointer(valid=True)
 
-        # 初始化边界值
-        self.min_position_x = None
-        self.max_position_x = None
-        self.min_position_y = None
-        self.max_position_y = None
-        self.max_heading    = None
-        self.min_heading    = None
+        # # 初始化边界值
+        # self.min_position_x = None
+        # self.max_position_x = None
+        # self.min_position_y = None
+        # self.max_position_y = None
+        # self.max_heading    = None
+        # self.min_heading    = None
 
+
+
+    def get_normalization_params(self):
+        """获取全局归一化参数"""
+        return {
+            'position': {
+                'x': (self.min_position_x, self.max_position_x),
+                'y': (self.min_position_y, self.max_position_y)
+            },
+            'heading': (self.min_heading, self.max_heading)
+        }
 
 
     def class_objtype(self, object_type):
@@ -122,30 +138,49 @@ class DataLoader:
         # Index of the current dataset
         dataset_index = 0
 
-        min_position_x = 10000
-        max_position_x = -10000
-        min_position_y = 10000
-        max_position_y = -10000
-        min_heading    = 6.5
-        max_heading    = -6.5
+        # min_position_x = 10000
+        # max_position_x = -10000
+        # min_position_y = 10000
+        # max_position_y = -10000
+        # min_heading    = 6.5
+        # max_heading    = -6.5
 
         for ind_directory, directory in enumerate(data_dirs):
             file_path = os.path.join("../data/prediction_train/", directory)
             data = np.genfromtxt(file_path, delimiter=" ")
-            min_position_x = min(min_position_x, min(data[:, 2]))
-            max_position_x = max(max_position_x, max(data[:, 2]))
-            min_position_y = min(min_position_y, min(data[:, 3]))
-            max_position_y = max(max_position_y, max(data[:, 3]))
-            min_heading = min(min_position_y, min(data[:, 4]))
-            max_heading = max(max_position_y, max(data[:, 4]))
 
-        # 保存边界值到类属性
-        self.min_position_x = min_position_x
-        self.max_position_x = max_position_x
-        self.min_position_y = min_position_y
-        self.max_position_y = max_position_y
-        self.max_heading = max_heading
-        self.min_heading = min_heading
+            # 检查数据有效性
+            if data.size == 0 or data.shape[0] == 0:
+                raise ValueError(f"文件 {file_path} 为空或格式错误")
+
+            # 使用numpy的min/max代替Python内置函数
+            self.min_position_x = min(self.min_position_x, np.min(data[:, 2]))
+            self.max_position_x = max(self.max_position_x, np.max(data[:, 2]))
+            self.min_position_y = min(self.min_position_y, np.min(data[:, 3]))
+            self.max_position_y = max(self.max_position_y, np.max(data[:, 3]))
+            self.min_heading = min(self.min_heading, np.min(data[:, 4]))
+            self.max_heading = max(self.max_heading, np.max(data[:, 4]))
+
+
+            # min_position_x = min(min_position_x, min(data[:, 2]))
+            # max_position_x = max(max_position_x, max(data[:, 2]))
+            # min_position_y = min(min_position_y, min(data[:, 3]))
+            # max_position_y = max(max_position_y, max(data[:, 3]))
+            # min_heading = min(min_heading, min(data[:, 4]))
+            # max_heading = max(max_heading, max(data[:, 4]))
+
+        # # 保存边界值到类属性
+        # self.min_position_x = min_position_x
+        # self.max_position_x = max_position_x
+        # self.min_position_y = min_position_y
+        # self.max_position_y = max_position_y
+        # self.max_heading = max_heading
+        # self.min_heading = min_heading
+
+        if None in [self.min_position_x, self.max_position_x,
+                    self.min_position_y, self.max_position_y,
+                    self.min_heading, self.max_heading]:
+            raise ValueError("归一化参数未正确计算!")
 
 
         # For each dataset
@@ -166,14 +201,14 @@ class DataLoader:
             ) * 2 - 1
             """
             data[:, 2] = (
-                (data[:, 2] - min_position_x) / (max_position_x - min_position_x)
+                (data[:, 2] - self.min_position_x) / (self.max_position_x - self.min_position_x)
             ) * 2 - 1
             data[:, 3] = (
-                (data[:, 3] - min_position_y) / (max_position_y - min_position_y)
+                (data[:, 3] - self.min_position_y) / (self.max_position_y - self.min_position_y)
             ) * 2 - 1
             # 新增对航向的归一化
             data[:, 4] = (
-                (data[:, 4] - min_heading) / (max_heading - min_heading)
+                (data[:, 4] - self.min_heading) / (self.max_heading - self.min_heading)
             ) * 2 - 1
 
             # data = data[~(data[:, 2] == 5)]
