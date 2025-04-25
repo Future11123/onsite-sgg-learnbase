@@ -119,12 +119,12 @@ def main():
 def train(args):
     # Construct the DataLoader object
     dataloader = DataLoader(args.batch_size, args.obs_length + 1, forcePreProcess=True)
-    norm_params = dataloader.get_normalization_params()  # 获取全局归一化参数
-    print(norm_params)
-    print("验证归一化参数:")
-    print(f"X范围: {norm_params['position']['x']}")
-    print(f"Y范围: {norm_params['position']['y']}")
-    print(f"Heading范围: {norm_params['heading']}")
+    # norm_params = dataloader.get_normalization_params()  # 获取全局归一化参数
+    # print(norm_params)
+    # print("验证归一化参数:")
+    # print(f"X范围: {norm_params['position']['x']}")
+    # print(f"Y范围: {norm_params['position']['y']}")
+    # print(f"Heading范围: {norm_params['heading']}")
 
 
 
@@ -174,6 +174,13 @@ def train(args):
             start = time.time()
             # Get batch data
             x,  _, d = dataloader.next_batch()
+
+            norm_params = dataloader.get_normalization_params(d[0])  # 获取全局归一化参数
+            print(norm_params)
+            print("验证归一化参数:")
+            print(f"X范围: {norm_params['position']['x']}")
+            print(f"Y范围: {norm_params['position']['y']}")
+            print(f"Heading范围: {norm_params['heading']}")
 
             # 获取当前数据集的 seq_length
             current_dataset_index = d[0]

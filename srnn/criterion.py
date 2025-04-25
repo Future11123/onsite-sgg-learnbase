@@ -29,15 +29,24 @@ def Gaussian2DLikelihood(outputs, targets, nodesPresent, obs_length, seq_length,
     - 运动状态分布一致性损失（基于核密度估计）
     """
     # 获取分布参数
-    mux, muy, sx, sy, corr = getCoef(outputs)
-    next_x, next_y = sample_gaussian_2d(
-        mux.data,
-        muy.data,
-        sx.data,
-        sy.data,
-        corr.data,
-        nodesPresent[args.obs_length - 1],
-    )
+    seq_length = seq_length[dataset_index]
+    numNodes = nodes.size()[1]
+    with torch.no_grad():
+        # 把第一个参数转换为元组
+        ret_nodes = torch.zeros((seq_length, numNodes, 2))
+    for tstep in range(obs_length - 1, seq_length - 1):
+        mux, muy, sx, sy, corr = getCoef(outputs)
+        next_x, next_y = sample_gaussian_2d(
+            mux.data,
+            muy.data,
+            sx.data,
+            sy.data,
+            corr.data,
+            nodesPresent[args.obs_length - 1],
+        )
+        ret_nodes[tstep + 1, :, 0] = next_x
+        ret_nodes[tstep + 1, :, 1] = next_y
+
     # 反归一化真实值 (nodes)
     nodes_real_denorm = nodes.clone()
     nodes_real_denorm[:, :, 0] = denormalize(nodes[:, :, 0], 'position_x', norm_params)
@@ -46,8 +55,8 @@ def Gaussian2DLikelihood(outputs, targets, nodesPresent, obs_length, seq_length,
 
     # 反归一化预测值 (outputs)
     outputs_denorm = outputs.clone()
-    outputs_denorm[:, :, 0] = denormalize(next_x, 'position_x', norm_params)  # mux
-    outputs_denorm[:, :, 1] = denormalize(next_y, 'position_y', norm_params)  # muy
+    outputs_denorm[:, :, 0] = denormalize(ret_nodes[:,:,0], 'position_x', norm_params)  # mux
+    outputs_denorm[:, :, 1] = denormalize(ret_nodes[:,:,1], 'position_y', norm_params)  # muy
     outputs_denorm[:, :, 5] = denormalize(outputs[:, :, 5], 'heading', norm_params)  # pred_heading
     print("反归一化验证:")
     print(
@@ -57,7 +66,7 @@ def Gaussian2DLikelihood(outputs, targets, nodesPresent, obs_length, seq_length,
 
     # 原始节点存在信息处理（保留原始逻辑）
     nodesPresent = [[m[0] for m in t] for t in nodesPresent]
-    seq_length = seq_length[dataset_index]
+    # seq_length = seq_length[dataset_index]
     device = outputs.device
     device = outputs_denorm.device
 
@@ -90,12 +99,12 @@ def Gaussian2DLikelihood(outputs, targets, nodesPresent, obs_length, seq_length,
     theta = outputs_denorm[:, :, 5]
 
     # 速度计算（注意时间步范围）
-    v_x = outputs_denorm[1:, :, 0] - outputs_denorm[:-1, :, 0]
-    v_y = outputs_denorm[1:, :, 1] - outputs_denorm[:-1, :, 1]
+    v_x = (outputs_denorm[1:, :, 0] - outputs_denorm[:-1, :, 0])/0.1
+    v_y = (outputs_denorm[1:, :, 1] - outputs_denorm[:-1, :, 1])/0.1
 
     # 加速度计算（保持原始实现）
-    a_x = v_x[1:] - v_x[:-1]
-    a_y = v_y[1:] - v_y[:-1]
+    a_x = (v_x[1:] - v_x[:-1])/0.1
+    a_y = (v_y[1:] - v_y[:-1])/0.1
 
     # 分解加速度到车体坐标系
     theta_for_a = theta[1:-1, :]
@@ -103,14 +112,14 @@ def Gaussian2DLikelihood(outputs, targets, nodesPresent, obs_length, seq_length,
     a_lat = -a_x * torch.sin(theta_for_a) + a_y * torch.cos(theta_for_a)
 
     # 加加速度计算（保留用户实现）
-    jerk_x = a_x[1:] - a_x[:-1]
-    jerk_y = a_y[1:] - a_y[:-1]
+    jerk_x = (a_x[1:] - a_x[:-1])/0.1
+    jerk_y = (a_y[1:] - a_y[:-1])/0.1
     theta_for_jerk = theta[2:-1, :]
     jerk_lon = jerk_x * torch.cos(theta_for_jerk) + jerk_y * torch.sin(theta_for_jerk)
     jerk_lat = -jerk_x * torch.sin(theta_for_jerk) + jerk_y * torch.cos(theta_for_jerk)
 
     # 横摆角速度
-    yaw_rate = theta[1:] - theta[:-1]
+    yaw_rate = (theta[1:] - theta[:-1])/0.1
 
     # ==================== 可微分分布一致性计算 ====================
     def kde_loss(pred, real, num_bins=20, sigma=0.1):
