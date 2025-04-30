@@ -244,22 +244,21 @@ def is_point_near(prediction, coordinates_data, threshold=1.8):
                     return True
     return False
 
+def get_car_in_lane(xodr,position):
+    xodr_file= '0_6_straight_straight_19.xodr'
+    xodr = xml.dom.minidom.parse(xodr_file)
 
-xodr_file= '0_6_straight_straight_19.xodr'
-xodr = xml.dom.minidom.parse(xodr_file)
+    xodr_end = Sim(xodr,show_plot=False)
 
-xodr_end = Sim(xodr,show_plot=False)
+    # 执行提取
+    coordinates_data = extract_road_lane_coordinates(xodr_end)
 
-# 执行提取
-coordinates_data = extract_road_lane_coordinates(xodr_end)
+    # 判断预测值是否到地图边缘（判断地图中是否有临近点）
+    # position = (1.5, 2.3)  # 替换为实际预测点
+    is_near = is_point_near(position, coordinates_data)
 
-# 判断预测值是否到地图边缘（判断地图中是否有临近点）
-prediction = (1.5, 2.3)  # 替换为实际预测点
-is_near = is_point_near(prediction, coordinates_data)
-
-# 示例输出结构
-print(f"共提取 {len(coordinates_data)} 条道路")
-print(f"第一条道路含 {len(coordinates_data[0]['lanes'])} 条车道")
-print(f"第一条车道坐标示例：{coordinates_data[0]['lanes'][0]['coordinates'][:2]}")
-
-print(f"是否存在邻近点：{is_near}")
+    # 示例输出结构
+    print(f"共提取 {len(coordinates_data)} 条道路")
+    print(f"第一条道路含 {len(coordinates_data[0]['lanes'])} 条车道")
+    print(f"第一条车道坐标示例：{coordinates_data[0]['lanes'][0]['coordinates'][:2]}")
+    print(f"是否存在邻近点：{is_near}")
