@@ -265,4 +265,4 @@ def get_car_in_lane(xodr_file,position):
 
 xodr_file= '0_6_straight_straight_19.xodr'
 position = (1.5, 2.3)
-get_car_in_lane(xodr_file,position
+get_car_in_lane(xodr_file,position)
