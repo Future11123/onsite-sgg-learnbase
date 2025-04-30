@@ -244,8 +244,8 @@ def is_point_near(prediction, coordinates_data, threshold=1.8):
                     return True
     return False
 
-def get_car_in_lane(xodr,position):
-    xodr_file= '0_6_straight_straight_19.xodr'
+def get_car_in_lane(xodr_file,position):
+    # xodr_file= '0_6_straight_straight_19.xodr'
     xodr = xml.dom.minidom.parse(xodr_file)
 
     xodr_end = Sim(xodr,show_plot=False)
@@ -262,3 +262,7 @@ def get_car_in_lane(xodr,position):
     print(f"第一条道路含 {len(coordinates_data[0]['lanes'])} 条车道")
     print(f"第一条车道坐标示例：{coordinates_data[0]['lanes'][0]['coordinates'][:2]}")
     print(f"是否存在邻近点：{is_near}")
+
+xodr_file= '0_6_straight_straight_19.xodr'
+position = (1.5, 2.3)
+get_car_in_lane(xodr_file,position
