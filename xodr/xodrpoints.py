@@ -1,6 +1,9 @@
 import xml.dom.minidom
 import D1xodrRoads
 import matplotlib.pyplot as plt
+import math
+import numpy as np
+
 
 def get_available_path(link_map, origin, destination):
     paths = []                      # 存储所有可用路径
@@ -195,9 +198,15 @@ def extract_road_lane_coordinates(sim_obj):
 
     # 遍历所有道路（link）
     for link_id, link in sim_obj.roadD1.link_map.items():
+        # 获取当前link的上下游连接关系
+        successor_ids = [out_link.id for out_link in link.out_link_lst]  # 后继link ID列表
+        predecessor_ids = [in_link.id for in_link in link.in_link_lst]  # 前驱link ID列表
+
         road_data = {
             "road_id": link_id,
-            "lanes": []
+            "lanes": [],
+            "road_successor": successor_ids,  # 添加后继link ID列表
+            "road_predecessor": predecessor_ids  # 添加前驱link ID列表
         }
 
         # 遍历车道（lane）
@@ -210,7 +219,10 @@ def extract_road_lane_coordinates(sim_obj):
                     "lane_id": lane.id,
                     "coordinates": coordinates,
                     "type": lane.type,
-                    "width": lane.width
+                    "width": lane.width,
+                    "global_lane_id": lane.index_id,  # 唯一ID格式：link_id*100 + lane_id
+                    "successor": lane.out_lane_id_lst,  # 车道级后继
+                    "predecessor": lane.in_lane_id_lst  # 车道级前驱
                 }
                 road_data["lanes"].append(lane_data)
 
@@ -237,6 +249,7 @@ def is_point_near(prediction, coordinates_data, threshold=1.8):
         for lane in road['lanes']:
             # 遍历车道中的每个坐标点
             for coord in lane['coordinates']:
+            # for coord in lane['center_line']:
                 x, y = coord
                 # 计算欧氏距离
                 distance = ((x - x_pred)** 2 + (y - y_pred)** 2)** 0.5
@@ -252,16 +265,17 @@ def get_car_in_lane(xodr_file,position):
 
     # 执行提取
     coordinates_data = extract_road_lane_coordinates(xodr_end)
+    print(coordinates_data)
 
     # 判断预测值是否到地图边缘（判断地图中是否有临近点）
     # position = (1.5, 2.3)  # 替换为实际预测点
     is_near = is_point_near(position, coordinates_data)
 
     # 示例输出结构
-    print(f"共提取 {len(coordinates_data)} 条道路")
-    print(f"第一条道路含 {len(coordinates_data[0]['lanes'])} 条车道")
-    print(f"第一条车道坐标示例：{coordinates_data[0]['lanes'][0]['coordinates'][:2]}")
-    print(f"是否存在邻近点：{is_near}")
+    # print(f"共提取 {len(coordinates_data)} 条道路")
+    # print(f"第一条道路含 {len(coordinates_data[0]['lanes'])} 条车道")
+    # print(f"第一条车道坐标示例：{coordinates_data[0]['lanes'][0]['coordinates'][:2]}")
+    # print(f"是否存在邻近点：{is_near}")
 
 xodr_file= '0_6_straight_straight_19.xodr'
 position = (1.5, 2.3)
