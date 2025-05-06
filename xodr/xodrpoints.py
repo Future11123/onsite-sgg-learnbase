@@ -257,6 +257,44 @@ def is_point_near(prediction, coordinates_data, threshold=1.8):
                     return True
     return False
 
+
+def get_nearest_road_lane(prediction, coordinates_data):
+    """
+    获取预测点最近的的道路和车道ID（无距离限制）
+
+    参数:
+        prediction (tuple): 目标点的坐标 (x, y)
+        coordinates_data (list): 路网数据
+
+    返回:
+        dict: 包含 road_id, lane_id 和 distance 的字典
+              如果没有数据则返回None
+    """
+    x_pred, y_pred = prediction
+    min_distance = float('inf')
+    closest_info = None
+
+    for road in coordinates_data:
+        road_id = road["road_id"]
+        for lane in road["lanes"]:
+            lane_id = lane["lane_id"]
+            global_lane_id = lane["global_lane_id"]
+            for coord in lane["coordinates"]:
+                x, y = coord
+                distance = math.hypot(x - x_pred, y - y_pred)
+                if distance < min_distance:
+                    min_distance = distance
+                    closest_info = {
+                        "road_id": road_id,
+                        "lane_id": lane_id,
+                        "global_lane_id": global_lane_id,
+                        "distance": distance
+                    }
+    return closest_info
+
+
+
+
 def get_car_in_lane(xodr_file,position):
     # xodr_file= '0_6_straight_straight_19.xodr'
     xodr = xml.dom.minidom.parse(xodr_file)
@@ -269,13 +307,14 @@ def get_car_in_lane(xodr_file,position):
 
     # 判断预测值是否到地图边缘（判断地图中是否有临近点）
     # position = (1.5, 2.3)  # 替换为实际预测点
-    is_near = is_point_near(position, coordinates_data)
+    nearest_road_lane = get_nearest_road_lane(position, coordinates_data)
 
     # 示例输出结构
     # print(f"共提取 {len(coordinates_data)} 条道路")
     # print(f"第一条道路含 {len(coordinates_data[0]['lanes'])} 条车道")
     # print(f"第一条车道坐标示例：{coordinates_data[0]['lanes'][0]['coordinates'][:2]}")
     # print(f"是否存在邻近点：{is_near}")
+    return coordinates_data
 
 xodr_file= '0_6_straight_straight_19.xodr'
 position = (1.5, 2.3)
