@@ -1,5 +1,5 @@
 import xml.dom.minidom
-import D1xodrRoads
+from xodr import D1xodrRoads
 import matplotlib.pyplot as plt
 import math
 import numpy as np
@@ -226,6 +226,7 @@ def extract_road_lane_coordinates(sim_obj):
                 }
                 road_data["lanes"].append(lane_data)
 
+        assert isinstance(road_data, dict), "road_data must be a dictionary"
         road_lane_coords.append(road_data)
 
     return road_lane_coords
@@ -295,7 +296,7 @@ def get_nearest_road_lane(prediction, coordinates_data):
 
 
 
-def get_car_in_lane(xodr_file,position):
+def get_car_in_lane(xodr_file):
     # xodr_file= '0_6_straight_straight_19.xodr'
     xodr = xml.dom.minidom.parse(xodr_file)
 
@@ -303,19 +304,23 @@ def get_car_in_lane(xodr_file,position):
 
     # 执行提取
     coordinates_data = extract_road_lane_coordinates(xodr_end)
-    print(coordinates_data)
+    # print(coordinates_data)
 
     # 判断预测值是否到地图边缘（判断地图中是否有临近点）
     # position = (1.5, 2.3)  # 替换为实际预测点
-    nearest_road_lane = get_nearest_road_lane(position, coordinates_data)
+    # nearest_road_lane = get_nearest_road_lane(position, coordinates_data)
 
     # 示例输出结构
     # print(f"共提取 {len(coordinates_data)} 条道路")
     # print(f"第一条道路含 {len(coordinates_data[0]['lanes'])} 条车道")
     # print(f"第一条车道坐标示例：{coordinates_data[0]['lanes'][0]['coordinates'][:2]}")
     # print(f"是否存在邻近点：{is_near}")
+
+    for road in coordinates_data:
+        if not isinstance(road, dict):
+            raise TypeError("Invalid road data type, expected dict")
     return coordinates_data
 
-xodr_file= '0_6_straight_straight_19.xodr'
-position = (1.5, 2.3)
-get_car_in_lane(xodr_file,position)
+# xodr_file= '0_6_straight_straight_19.xodr'
+# position = (1.5, 2.3)
+# get_car_in_lane(xodr_file,position)
