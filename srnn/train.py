@@ -13,6 +13,7 @@ from st_graph import ST_GRAPH
 from utils import DataLoader, set_logger
 import helper
 
+
 os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 
 
@@ -130,7 +131,7 @@ def train(args):
 
     seq_length = dataloader.seq_length
     # Construct the ST-graph object
-    stgraph = ST_GRAPH(1, )
+    stgraph = ST_GRAPH(1)
 
 
     # Log directory
@@ -176,11 +177,11 @@ def train(args):
             x,  _, d = dataloader.next_batch()
 
             norm_params = dataloader.get_normalization_params(d[0])  # 获取全局归一化参数
-            print(norm_params)
-            print("验证归一化参数:")
-            print(f"X范围: {norm_params['position']['x']}")
-            print(f"Y范围: {norm_params['position']['y']}")
-            print(f"Heading范围: {norm_params['heading']}")
+            # print(norm_params)
+            # print("验证归一化参数:")
+            # print(f"X范围: {norm_params['position']['x']}")
+            # print(f"Y范围: {norm_params['position']['y']}")
+            # print(f"Heading范围: {norm_params['heading']}")
 
             # 获取当前数据集的 seq_length
             current_dataset_index = d[0]
@@ -189,13 +190,13 @@ def train(args):
             # Loss for this batch
             loss_batch = 0
 
-
-
             # For each sequence in the batch
-
             for sequence in range(dataloader.batch_size):
+                dataset_index = d[sequence]
+                # 获取当前sequence对应的xodr数据
+                road_data_batch = dataloader.xodr_data[dataset_index]
                 # Construct the graph for the current sequence
-                stgraph.readGraph([x[sequence]],current_seq_length)
+                stgraph.readGraph([x[sequence]],current_seq_length,road_data_batch)
                 nodes, edges, nodesPresent, edgesPresent = stgraph.getSequence(current_seq_length)
                 # Convert to cuda variables
                 nodes = Variable(torch.from_numpy(nodes).float())

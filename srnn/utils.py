@@ -2,9 +2,18 @@ import logging
 import os
 import pickle
 import random
-
+import glob
 import numpy as np
 
+
+import sys
+
+# 获取当前文件的绝对路径，并定位到项目根目录
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.append(project_root)
+
+# 然后继续其他导入
+from xodr.xodrpoints import get_car_in_lane
 
 def set_logger(log_path):
     """Set the logger to log info in terminal and file `log_path`.
@@ -63,11 +72,25 @@ class DataLoader:
         # random.seed(42)
         # np.random.seed(42)
         # List of data directories where raw data resides
-        self.data_dirs = "../data/prediction_train/"
-        self.dataset_cnt = len(os.listdir(self.data_dirs))
-        self.dataset_idx = sorted(os.listdir(self.data_dirs))
-        np.random.shuffle(self.dataset_idx)
+        # self.data_dirs = "../data/prediction_train/"
+        # self.dataset_cnt = len(os.listdir(self.data_dirs))
+        # self.dataset_idx = sorted(os.listdir(self.data_dirs))
+
+        self.base_dir = "../第五赛道_A卷/"
+        # 获取所有包含_gt.txt的子目录路径（确保路径正确）
+        self.dataset_dirs = []
+        for entry in os.listdir(self.base_dir):
+            entry_path = os.path.join(self.base_dir, entry)
+            if os.path.isdir(entry_path):
+                gt_files = glob.glob(os.path.join(entry_path, "*_gt.txt"))
+                if gt_files:
+                    self.dataset_dirs.append(entry_path)
+        self.dataset_dirs = sorted(self.dataset_dirs)
+        self.dataset_cnt = len(self.dataset_dirs)
+        self.dataset_idx = self.dataset_dirs
+        np.random.shuffle(self.dataset_idx)  # 打乱顺序
         self.train_data_dirs = self.dataset_idx
+
         if infer == True:
             self.train_data_dirs = self.dataset_idx[int(self.dataset_cnt * 0.9) :]
         self.infer = infer
@@ -77,9 +100,11 @@ class DataLoader:
         self.seq_length = []
         self.obs_length = obs_length
 
-        data_file = os.path.join("../data/", "trajectories.cpkl")
+        # data_file = os.path.join("../data/", "trajectories.cpkl")
+        data_file = os.path.join("../第五赛道_A卷/", "trajectories.cpkl")
         if infer == True:
-            data_file = os.path.join("../data/", "test_trajectories.cpkl")
+            # data_file = os.path.join("../data/", "test_trajectories.cpkl")
+            data_file = os.path.join("../第五赛道_A卷/", "test_trajectories.cpkl")
 
         self.val_fraction = 0.2
 
@@ -144,6 +169,7 @@ class DataLoader:
         # Ech list would contain the number of pedestrians in each frame in the dataset
         numPeds_data = []
         # Index of the current dataset
+        xodr_data = []  # 新增存储xodr内容的列表
         dataset_index = 0
 
         min_position_x = 15000
@@ -154,12 +180,23 @@ class DataLoader:
         max_heading    = -6.5
 
         for ind_directory, directory in enumerate(data_dirs):
-            file_path = os.path.join("../data/prediction_train/", directory)
-            data = np.genfromtxt(file_path, delimiter=" ")
+            # file_path = os.path.join("../data/prediction_train/", directory)
+            gt_path = glob.glob(os.path.join(directory, "*_gt.txt"))[0]
+            base_name = os.path.basename(gt_path).replace("_gt.txt", "")
+            xodr_path = os.path.join(directory, f"{base_name}.xodr")
+
+            if not os.path.exists(xodr_path):
+                raise FileNotFoundError(f"Missing xodr file for {gt_path}")
+
+            # 读取并存储xodr数据
+            road_data_batch = get_car_in_lane(xodr_path)
+            xodr_data.append(road_data_batch)
+
+            data = np.genfromtxt(gt_path, delimiter=" ")
 
             # 检查数据有效性
             if data.size == 0 or data.shape[0] == 0:
-                raise ValueError(f"文件 {file_path} 为空或格式错误")
+                raise ValueError(f"文件 {gt_path} 为空或格式错误")
 
             # 使用numpy的min/max代替Python内置函数
             min_position_x = min(min_position_x, np.min(data[:, 2]))
@@ -195,8 +232,8 @@ class DataLoader:
         for ind_directory, directory in enumerate(data_dirs):
             # define path of the csv file of the current dataset
             # file_path = os.path.join(directory, 'pixel_pos.csv')
-
-            file_path = os.path.join("../data/prediction_train/", directory)
+            file_path = glob.glob(os.path.join(directory, "*_gt.txt"))[0]
+            # file_path = os.path.join("../data/prediction_train/", directory)
 
             # Load the data from the csv file
             data = np.genfromtxt(file_path, delimiter=" ")
@@ -285,7 +322,7 @@ class DataLoader:
         # Save the tuple (all_frame_data, frameList_data, numPeds_data) in the pickle file
         f = open(data_file, "wb")
         pickle.dump(
-            (all_frame_data, frameList_data, numPeds_data),
+            (all_frame_data, frameList_data, numPeds_data,xodr_data),
             f,
             protocol=2,
         )
@@ -305,6 +342,7 @@ class DataLoader:
         self.data = self.raw_data[0]
         self.frameList = self.raw_data[1]
         self.numPedsList = self.raw_data[2]
+        self.xodr_data = self.raw_data[3]  # 加载xodr数据
         # self.valid_data = self.raw_data[3]
         counter = 0
         valid_counter = 0

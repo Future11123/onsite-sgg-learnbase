@@ -181,6 +181,40 @@ class Sim:
         # 存储路网数据
         self.roadD1 = roadD1
 
+        # 为所有路径创建路径ID列表
+        all_path_list = []
+        for path in self.roadD1.path_map.values():
+            path_id_lst = self.roadD1.find_path(path.oid, path.did)  # 获取路径的ID列表
+            all_path_list.append(path_id_lst)
+        self.all_path_list = all_path_list  # 存储所有路径的ID列表
+
+        # 更新起点和终点点的连接（完善路网）
+        o_points = [link_id for link_id, link in net.link_map.items()]
+        d_points = [link_id for link_id, link in net.link_map.items()]
+
+        # 再次查找合法的连接
+        legal_connections = find_legal_connections_between_o_d(net.link_map, o_points, d_points)
+
+        # 组织合法的连接
+        path_set = organize_legal_connections(legal_connections)
+
+        # 如果路径为空，生成基础OD对
+        if not path_set:
+            path_set = generate_basic_od_pairs(net.link_map)
+
+        # 参数配置（例如车辆参数）
+        roadD1.create_path(path_set)  # 根据路网拓扑结构创建路径
+
+        # 初始化路径的时间间隔
+        for path in roadD1.path_map.values():
+            path.interval = 0
+
+        # 约束世界（设置可用的道路ID列表）
+        self.constrain_world(roadD1)
+
+        # 存储路网数据
+        self.roadD1 = roadD1
+
 
     def constrain_world(self,graph):
         world_link_ids = []  # 存储所有的世界路链ID
@@ -221,6 +255,7 @@ def extract_road_lane_coordinates(sim_obj):
                     "type": lane.type,
                     "width": lane.width,
                     "global_lane_id": lane.index_id,  # 唯一ID格式：link_id*100 + lane_id
+                    # "global_lane_id":  f"lane_{link_id}_{lane.id}",  # 唯一ID格式：link_id*100 + lane_id
                     "successor": lane.out_lane_id_lst,  # 车道级后继
                     "predecessor": lane.in_lane_id_lst  # 车道级前驱
                 }
@@ -319,7 +354,7 @@ def get_car_in_lane(xodr_file):
     for road in coordinates_data:
         if not isinstance(road, dict):
             raise TypeError("Invalid road data type, expected dict")
-    return coordinates_data
+    return [coordinates_data]
 
 # xodr_file= '0_6_straight_straight_19.xodr'
 # position = (1.5, 2.3)
