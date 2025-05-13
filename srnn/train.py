@@ -177,11 +177,11 @@ def train(args):
             x,  _, d = dataloader.next_batch()
 
             norm_params = dataloader.get_normalization_params(d[0])  # 获取全局归一化参数
-            # print(norm_params)
-            # print("验证归一化参数:")
-            # print(f"X范围: {norm_params['position']['x']}")
-            # print(f"Y范围: {norm_params['position']['y']}")
-            # print(f"Heading范围: {norm_params['heading']}")
+            print(norm_params)
+            print("验证归一化参数:")
+            print(f"X范围: {norm_params['position']['x']}")
+            print(f"Y范围: {norm_params['position']['y']}")
+            print(f"Heading范围: {norm_params['heading']}")
 
             # 获取当前数据集的 seq_length
             current_dataset_index = d[0]
