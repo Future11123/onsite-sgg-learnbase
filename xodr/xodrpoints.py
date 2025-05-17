@@ -247,7 +247,7 @@ def extract_road_lane_coordinates(sim_obj):
         for lane in link.lane_lst:
             if hasattr(lane, 'xy') and lane.xy:
                 # 转换坐标格式：[[x1,y1], [x2,y2], ...]
-                coordinates = [[x, y] for x, y in zip(lane.xy[0], lane.xy[1])]
+                coordinates = [[round(x, 1), round(y, 1)] for x, y in zip(lane.xy[0], lane.xy[1])]
 
                 lane_data = {
                     "lane_id": lane.id,
