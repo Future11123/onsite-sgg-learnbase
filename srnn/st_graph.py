@@ -60,10 +60,10 @@ class ST_GRAPH:
                 # Add nodes
                 for ped in range(frame.shape[0]):
                     pedID = frame[ped, 0]
-                    x = frame[ped, 1]
-                    y = frame[ped, 2]
+                    x = round(frame[ped, 1],1)
+                    y = round(frame[ped, 2],1)
                     # 将航向加进去
-                    heading = frame[ped, 3]
+                    heading = round(frame[ped, 3],1)
                     pos = (x, y, heading)
                     node_type = frame[ped, 4]
 
