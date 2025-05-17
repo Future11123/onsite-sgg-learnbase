@@ -166,8 +166,8 @@ class ST_GRAPH:
                 # 每5米采样一个点（假设坐标单位为米）
                 sampled_points = coordinates[::5]
                 # 只保留起点和终点
-                if len(sampled_points) > 2:
-                    sampled_points = [coordinates[0], coordinates[-1]]
+                # if len(sampled_points) > 2:
+                    # sampled_points = [coordinates[0], coordinates[-1]]
                 # 保存采样后的坐标点
                 lane["sampled_points"] = sampled_points
                 # for point_idx, (x, y) in enumerate(lane["coordinates"]):
