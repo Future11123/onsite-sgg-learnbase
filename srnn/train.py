@@ -120,6 +120,13 @@ def main():
 def train(args):
     # Construct the DataLoader object
     dataloader = DataLoader(args.batch_size, args.obs_length + 1, forcePreProcess=True)
+    norm_params = {
+        'min_position_x': dataloader.min_position_x,
+        'max_position_x': dataloader.max_position_x,
+        'min_position_y': dataloader.min_position_y,
+        'max_position_y': dataloader.max_position_y,
+    }
+
     # norm_params = dataloader.get_normalization_params()  # 获取全局归一化参数
     # print(norm_params)
     # print("验证归一化参数:")
@@ -131,7 +138,7 @@ def train(args):
 
     seq_length = dataloader.seq_length
     # Construct the ST-graph object
-    stgraph = ST_GRAPH(1)
+    stgraph = ST_GRAPH(batch_size=args.batch_size,norm_params=norm_params )
 
 
     # Log directory

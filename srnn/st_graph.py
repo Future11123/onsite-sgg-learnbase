@@ -1,9 +1,11 @@
 import numpy as np
 from helper import getMagnitudeAndDirection, getVector
 from xodr.xodrpoints import get_car_in_lane
+import argparse
+from utils import DataLoader
 
 class ST_GRAPH:
-    def __init__(self, batch_size):
+    def __init__(self, batch_size, norm_params):
         """
         Initializer function for the ST graph class
         params:
@@ -15,6 +17,11 @@ class ST_GRAPH:
         self.edges = [{} for i in range(batch_size)]
         self.road_nodes = [{} for _ in range(batch_size)]  # 新增道路节点存储
         self.static_edges = [{} for _ in range(batch_size)]  # 新增静态边存储
+        # 从norm_params字典中获取归一化参数
+        self.min_position_x = float(norm_params['min_position_x'][0])
+        self.max_position_x = float(norm_params['max_position_x'][0])
+        self.min_position_y = float(norm_params['min_position_y'][0])
+        self.max_position_y = float(norm_params['max_position_y'][0])
 
     def reset(self):
         self.nodes = [{} for i in range(self.batch_size)]
@@ -60,10 +67,10 @@ class ST_GRAPH:
                 # Add nodes
                 for ped in range(frame.shape[0]):
                     pedID = frame[ped, 0]
-                    x = round(frame[ped, 1],1)
-                    y = round(frame[ped, 2],1)
+                    x = round(frame[ped, 1],2)
+                    y = round(frame[ped, 2],2)
                     # 将航向加进去
-                    heading = round(frame[ped, 3],1)
+                    heading = round(frame[ped, 3],2)
                     pos = (x, y, heading)
                     node_type = frame[ped, 4]
 
@@ -164,7 +171,7 @@ class ST_GRAPH:
             for lane in road_link["lanes"]:
                 coordinates = lane["coordinates"]
                 # 每5米采样一个点（假设坐标单位为米）
-                sampled_points = coordinates[::5]
+                sampled_points = coordinates[::30]
                 # 只保留起点和终点
                 # if len(sampled_points) > 2:
                     # sampled_points = [coordinates[0], coordinates[-1]]
@@ -185,7 +192,7 @@ class ST_GRAPH:
         for ped in range(frame.shape[0]):
             pedID = frame[ped, 0]
             obj_type = int(frame[ped, 4])
-            current_pos = (frame[ped, 1], frame[ped, 2])
+            current_pos = (round(frame[ped, 1],2), round(frame[ped, 2],2))
 
             if obj_type == 3:  # 仅处理车辆
                 # 寻找最近的车道线（示例逻辑）
@@ -198,7 +205,11 @@ class ST_GRAPH:
                 if nearest_lane:
                     # 创建车辆-车道线边
                     edge_id = (pedID, nearest_lane.node_id)
-                    pos_edge = (current_pos, nearest_lane.getPosition(framenum)[:2])
+                    road_node_position = list(nearest_lane.getPosition(framenum)[:2])
+                    road_node_position[0] = round(((road_node_position[0] - self.min_position_x) / (self.max_position_x - self.min_position_x)) * 2 - 1, 2)
+                    road_node_position[1] = round(((road_node_position[1] - self.min_position_y) / (self.max_position_y - self.min_position_y)) * 2 - 1, 2)
+                    road_node_position = tuple(road_node_position)
+                    pos_edge = (current_pos, road_node_position)
 
                     if edge_id not in self.static_edges[sequence]:
                         self.static_edges[sequence][edge_id] = ST_EDGE(
@@ -213,15 +224,23 @@ class ST_GRAPH:
         """查找最近的指定类型道路元素（简化版）"""
         min_dist = float('inf')
         nearest_elem = None
-        current_x, current_y = current_pos
+
+###################################################################################################################
+        current_x_norm, current_y_norm = current_pos
+
+        # 反归一化操作
+        current_x = round(((current_x_norm + 1) / 2) * (self.max_position_x - self.min_position_x) + self.min_position_x,2)
+        current_y = round(((current_y_norm + 1) / 2) * (self.max_position_y - self.min_position_y) + self.min_position_y,2)
+        # ret_nodes[:, :, 2] = ((ret_nodes[:, :, 2] + 1) / 2) * (max_heading - min_heading) + min_heading
+###################################################################################################################
 
         for node in road_nodes.values():
-            if node.node_type == elem_type:
-                node_x, node_y, _ = node.getPosition(0)  # 静态元素位置不随时间变化
-                dist = np.sqrt((current_x - node_x)** 2 + (current_y - node_y)** 2)
-                if dist < min_dist and dist < 5.0:  # 设置距离阈值
-                    min_dist = dist
-                    nearest_elem = node
+            # if node.node_type == elem_type:
+            node_x, node_y, _ = node.getPosition(0)  # 静态元素位置不随时间变化
+            dist = np.sqrt((current_x - node_x)** 2 + (current_y - node_y)** 2)
+            if dist < min_dist and dist < 5.0:  # 设置距离阈值
+                min_dist = dist
+                nearest_elem = node
         return nearest_elem
 
     def _create_static_edges(self, sequence, road_data):

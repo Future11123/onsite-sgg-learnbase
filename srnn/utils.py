@@ -206,14 +206,6 @@ class DataLoader:
             min_heading = min(min_heading, np.min(data[:, 4]))
             max_heading = max(max_heading, np.max(data[:, 4]))
 
-
-            # min_position_x = min(min_position_x, min(data[:, 2]))
-            # max_position_x = max(max_position_x, max(data[:, 2]))
-            # min_position_y = min(min_position_y, min(data[:, 3]))
-            # max_position_y = max(max_position_y, max(data[:, 3]))
-            # min_heading = min(min_heading, min(data[:, 4]))
-            # max_heading = max(max_heading, max(data[:, 4]))
-
             # # 保存边界值到类属性
             self.min_position_x.append(min_position_x)
             self.max_position_x.append(max_position_x)
