@@ -935,10 +935,13 @@ class SRNN(nn.Module):
             outputs_return = outputs_return.cuda()
 
         for framenum in range(current_seq_length):
-            for node in range(numNodes):
-                outputs_return[framenum, node, :] = outputs[
-                    framenum * numNodes + node, :
-                ]
+            # for node_info in range(numNodes):
+            for node_info in nodesPresent[framenum]:
+                node_idx, node_type = node_info
+                if node_type == 3:  # 车辆类型
+                    outputs_return[framenum, node_idx, :] = outputs[
+                        framenum * numNodes + node_idx, :
+                    ]
 
         # return outputs_return
         return (

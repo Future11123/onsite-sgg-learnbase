@@ -60,9 +60,7 @@ class ST_GRAPH:
                 # Each frame is a numpy array
                 # each row in the array is of the form
                 # pedID, x, y, type
-                frame = source_seq[
-                    framenum
-                ]
+                frame = source_seq[framenum]
 
                 # Add nodes
                 for ped in range(frame.shape[0]):
@@ -107,9 +105,7 @@ class ST_GRAPH:
                                 edge_type, edge_id, edge_pos_list
                             )
                         else:
-                            self.edges[sequence][edge_id].addPosition(
-                                pos_edge, framenum
-                            )
+                            self.edges[sequence][edge_id].addPosition(pos_edge, framenum)
 
                         # 新增车辆-道路边处理
                         self._create_road_edges(sequence, frame, framenum)
@@ -211,14 +207,14 @@ class ST_GRAPH:
                     road_node_position = tuple(road_node_position)
                     pos_edge = (current_pos, road_node_position)
 
-                    if edge_id not in self.static_edges[sequence]:
-                        self.static_edges[sequence][edge_id] = ST_EDGE(
+                    if edge_id not in self.edges[sequence]:
+                        self.edges[sequence][edge_id] = ST_EDGE(
                             edge_type="vehicle/lane_S",
                             edge_id=edge_id,
                             edge_pos_list={framenum: pos_edge}
                         )
                     else:
-                        self.static_edges[sequence][edge_id].addPosition(pos_edge, framenum)
+                        self.edges[sequence][edge_id].addPosition(pos_edge, framenum)
 
     def _find_nearest_road_element(self, current_pos, road_nodes, elem_type):
         """查找最近的指定类型道路元素（简化版）"""
@@ -238,7 +234,7 @@ class ST_GRAPH:
             # if node.node_type == elem_type:
             node_x, node_y, _ = node.getPosition(0)  # 静态元素位置不随时间变化
             dist = np.sqrt((current_x - node_x)** 2 + (current_y - node_y)** 2)
-            if dist < min_dist and dist < 5.0:  # 设置距离阈值
+            if dist < min_dist and dist < 3.0:  # 设置距离阈值
                 min_dist = dist
                 nearest_elem = node
         return nearest_elem
@@ -298,8 +294,6 @@ class ST_GRAPH:
             )
 
 
-
-
     def printGraph(self):
         """
         Print function for the graph
@@ -348,9 +342,10 @@ class ST_GRAPH:
         for i, ped in enumerate(nodes.keys()):
             list_of_nodes[ped] = i
             pos_list = nodes[ped].node_pos_list
+            node_type = nodes[ped].getType()  # 获取节点类型
             for framenum in range(self.seq_length):
                 if framenum in pos_list:
-                    retNodePresent[framenum].append((i, nodes[ped].getType()))
+                    retNodePresent[framenum].append((i, node_type))
                     retNodes[framenum, i, :] = list(pos_list[framenum])
                     # retNodes_type[framenum].append(nodes[ped].getType())
 
@@ -523,7 +518,7 @@ class ST_EDGE:
         pos : A tuple (x, y)
         index : time-step
         """
-        assert index not in self.edge_pos_list
+        # assert index not in self.edge_pos_list
         self.edge_pos_list[index] = pos
 
     def printEdge(self):
