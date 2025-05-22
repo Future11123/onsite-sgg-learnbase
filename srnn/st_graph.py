@@ -44,9 +44,9 @@ class ST_GRAPH:
             road_data = road_data_batch[sequence]  # 获取道路数据
 
             # 新增数据检查
-            print(f"Debug road_data type: {type(road_data)}, content:")
-            for i, item in enumerate(road_data):
-                print(f"Item {i}: type={type(item)}, content={str(item)[:50]}")  # 打印前50字符避免刷屏
+            # print(f"Debug road_data type: {type(road_data)}, content:")
+            # for i, item in enumerate(road_data):
+            #     print(f"Item {i}: type={type(item)}, content={str(item)[:50]}")  # 打印前50字符避免刷屏
 
 
             # 新增道路节点处理
@@ -175,11 +175,14 @@ class ST_GRAPH:
                 lane["sampled_points"] = sampled_points
                 # for point_idx, (x, y) in enumerate(lane["coordinates"]):
                 for point_idx, (x, y) in enumerate(sampled_points):
+                    # 归一化处理
+                    x_norm = ((x - self.min_position_x) / (self.max_position_x - self.min_position_x)) * 2 - 1
+                    y_norm = ((y - self.min_position_y) / (self.max_position_y - self.min_position_y)) * 2 - 1
                     lane_node_id = f"lane_{lane['global_lane_id']}_{point_idx}"
                     self.road_nodes[sequence][lane_node_id] = ST_NODE(
                         node_type=ST_NODE.ROAD_TYPES[lane['type']],  # 转换为数值类型
                         node_id=lane_node_id,
-                        node_pos_list={t: (x, y, 0) for t in range(self.seq_length)}
+                        node_pos_list={t: (x_norm, y_norm, 0) for t in range(self.seq_length)}
                     )
 
     # 动态边创建
@@ -232,7 +235,10 @@ class ST_GRAPH:
 
         for node in road_nodes.values():
             # if node.node_type == elem_type:
-            node_x, node_y, _ = node.getPosition(0)  # 静态元素位置不随时间变化
+            node_x_norm, node_y_norm, _ = node.getPosition(0)  # 静态元素位置不随时间变化
+            # 反归一化道路节点坐标
+            node_x = ((node_x_norm + 1) / 2) * (self.max_position_x - self.min_position_x) + self.min_position_x
+            node_y = ((node_y_norm + 1) / 2) * (self.max_position_y - self.min_position_y) + self.min_position_y
             dist = np.sqrt((current_x - node_x)** 2 + (current_y - node_y)** 2)
             if dist < min_dist and dist < 3.0:  # 设置距离阈值
                 min_dist = dist

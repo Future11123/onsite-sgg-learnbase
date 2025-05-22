@@ -63,6 +63,8 @@ def Gaussian2DLikelihood(outputs, targets, nodesPresent, obs_length, seq_length,
         f"预测x范围: [{outputs_denorm[:, :, 0].min().item():.2f}, {outputs_denorm[:, :, 0].max().item():.2f}]")
     print(
         f"真实x范围: [{nodes_real_denorm[:, :, 0].min().item():.2f}, {nodes_real_denorm[:, :, 0].max().item():.2f}]")
+    print(
+        f"真实Y范围: [{nodes_real_denorm[:, :, 1].min().item():.2f}, {nodes_real_denorm[:, :, 1].max().item():.2f}]")
 
     # 原始节点存在信息处理（保留原始逻辑）
     nodesPresent = [[m[0] for m in t] for t in nodesPresent]

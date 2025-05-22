@@ -79,7 +79,7 @@ def main():
     parser.add_argument("--batch_size", type=int, default=1, help="Batch size")
 
     # Number of epochs
-    parser.add_argument("--num_epochs", type=int, default=10, help="number of epochs")
+    parser.add_argument("--num_epochs", type=int, default=100, help="number of epochs")
 
     # Gradient value at which it should be clipped
     parser.add_argument(
