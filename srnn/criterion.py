@@ -70,6 +70,9 @@ def Gaussian2DLikelihood(outputs, targets, nodesPresent, obs_length, seq_length,
     print(
         f"真实Y范围: [{nodes_real_denorm[:, :, 1].min().item():.2f}, {nodes_real_denorm[:, :, 1].max().item():.2f}]")
 
+    # 计算位移误差
+    ade, fde = calculate_displacement_errors(outputs_denorm[:, :, :2], nodes_real_denorm[:, :, :2])
+
     # 原始节点存在信息处理（保留原始逻辑）
     nodesPresent = [[m[0] for m in t] for t in nodesPresent]
     # seq_length = seq_length[dataset_index]
@@ -104,7 +107,7 @@ def Gaussian2DLikelihood(outputs, targets, nodesPresent, obs_length, seq_length,
     # 运动学参数计算（保留用户原始实现）
     theta = outputs_denorm[:, :, 5]
 
-    time_interval = 1
+    time_interval = 0.1
 
     # 速度计算（注意时间步范围）
     v_x = (outputs_denorm[1:, :, 0] - outputs_denorm[:-1, :, 0])/time_interval
@@ -268,7 +271,7 @@ def Gaussian2DLikelihood(outputs, targets, nodesPresent, obs_length, seq_length,
         loss_B /= 3  # 三个子指标平均
 
         # 总损失计算（动态权重平衡）
-        total_loss = loss_pos + loss_heading + 0.1 * loss_dynamics + 0.05 * loss_B
+        total_loss = loss_pos + loss_heading + 0.1 * loss_dynamics + 0.05 * loss_B + ade + fde
 
         # 调试输出（保留原始格式）
         print('[Loss Breakdown]')
@@ -276,6 +279,8 @@ def Gaussian2DLikelihood(outputs, targets, nodesPresent, obs_length, seq_length,
         print(f'  Heading: {loss_heading:.4f} (航向角损失)')
         print(f'  Dynamics: {loss_dynamics:.4f} (动力学约束)')
         print(f'  B-Consistency: {loss_B:.4f} (运动分布一致性)')
+        print(f'  ADE: {ade:.4f} (平均位移误差)')
+        print(f'  FDE: {fde:.4f} (最后一帧位移误差)')
         print(f'  Total: {total_loss:.4f}\n')
 
         return total_loss
