@@ -22,7 +22,26 @@ def denormalize(normalized_value, feature_type, norm_params):
 
     # 反归一化公式（与之前的归一化公式对应）
     return denorm_value
+def calculate_displacement_errors(pred_traj, gt_traj):
+    """
+    计算平均位移误差(ADE)和最终位移误差(FDE)
+    参数:
+        pred_traj: 预测轨迹，形状为 [seq_len, batch_size, 2]
+        gt_traj: 真实轨迹，形状为 [seq_len, batch_size, 2]
+    返回:
+        ade: 平均位移误差
+        fde: 最终位移误差
+    """
+    # 计算每一步的欧氏距离
+    errors = torch.norm(pred_traj - gt_traj, dim=2)  # [seq_len, batch_size]
 
+    # 计算 ADE: 所有时间步的平均误差
+    ade = torch.mean(errors)
+
+    # 计算 FDE: 最后时间步的误差
+    fde = torch.mean(errors[-1])
+
+    return ade, fde
 
 def Gaussian2DLikelihood(outputs, targets, nodesPresent, obs_length, seq_length, dataset_index, args,nodes,norm_params):
     """
