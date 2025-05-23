@@ -55,12 +55,8 @@ class DataLoader:
         datasets : The indices of the datasets to use
         forcePreProcess : Flag to forcefully preprocess the data again from csv files
         """
-        # self.min_position_x = float('inf')
-        # self.max_position_x = -float('inf')
-        # self.min_position_y = float('inf')
-        # self.max_position_y = -float('inf')
-        # self.min_heading = float('inf')
-        # self.max_heading = -float('inf')
+
+        self.norm_params_list = []  # 每个元素是字典格式的归一化参数
 
         self.min_position_x = []
         self.max_position_x = []
@@ -68,13 +64,6 @@ class DataLoader:
         self.max_position_y = []
         self.min_heading = []
         self.max_heading = []
-
-        # random.seed(42)
-        # np.random.seed(42)
-        # List of data directories where raw data resides
-        # self.data_dirs = "../data/prediction_train/"
-        # self.dataset_cnt = len(os.listdir(self.data_dirs))
-        # self.dataset_idx = sorted(os.listdir(self.data_dirs))
 
         self.base_dir = "../第五赛道_A卷/"
         # 获取所有包含_gt.txt的子目录路径（确保路径正确）
@@ -121,16 +110,6 @@ class DataLoader:
         self.reset_batch_pointer(valid=False)
         self.reset_batch_pointer(valid=True)
 
-        # # 初始化边界值
-        # self.min_position_x = None
-        # self.max_position_x = None
-        # self.min_position_y = None
-        # self.max_position_y = None
-        # self.max_heading    = None
-        # self.min_heading    = None
-
-
-
     def get_normalization_params(self,data_index):
         """获取全局归一化参数"""
         return {
@@ -172,13 +151,6 @@ class DataLoader:
         xodr_data = []  # 新增存储xodr内容的列表
         dataset_index = 0
 
-        min_position_x = 15000
-        max_position_x = -15000
-        min_position_y = 15000
-        max_position_y = -15000
-        min_heading    = 6.5
-        max_heading    = -6.5
-
         for ind_directory, directory in enumerate(data_dirs):
             # file_path = os.path.join("../data/prediction_train/", directory)
             gt_path = glob.glob(os.path.join(directory, "*_gt.txt"))[0]
@@ -198,55 +170,44 @@ class DataLoader:
             if data.size == 0 or data.shape[0] == 0:
                 raise ValueError(f"文件 {gt_path} 为空或格式错误")
 
-            # 使用numpy的min/max代替Python内置函数
-            min_position_x = min(min_position_x, np.min(data[:, 2]))
-            max_position_x = max(max_position_x, np.max(data[:, 2]))
-            min_position_y = min(min_position_y, np.min(data[:, 3]))
-            max_position_y = max(max_position_y, np.max(data[:, 3]))
-            min_heading = min(min_heading, np.min(data[:, 4]))
-            max_heading = max(max_heading, np.max(data[:, 4]))
-
-            # # 保存边界值到类属性
-            self.min_position_x.append(min_position_x)
-            self.max_position_x.append(max_position_x)
-            self.min_position_y.append(min_position_y)
-            self.max_position_y.append(max_position_y)
-            self.max_heading.append(max_heading)
-            self.min_heading.append(min_heading)
-
-        if None in [self.min_position_x, self.max_position_x,
-                    self.min_position_y, self.max_position_y,
-                    self.min_heading, self.max_heading]:
-            raise ValueError("归一化参数未正确计算!")
-
-
         # For each dataset
         for ind_directory, directory in enumerate(data_dirs):
             # define path of the csv file of the current dataset
-            # file_path = os.path.join(directory, 'pixel_pos.csv')
             file_path = glob.glob(os.path.join(directory, "*_gt.txt"))[0]
-            # file_path = os.path.join("../data/prediction_train/", directory)
 
             # Load the data from the csv file
             data = np.genfromtxt(file_path, delimiter=" ")
-            """
-            data[:, 3] = (
-                (data[:, 3] - min(data[:, 3])) / (max(data[:, 3]) - min(data[:, 3]))
-            ) * 2 - 1
-            data[:, 4] = (
-                (data[:, 4] - min(data[:, 4])) / (max(data[:, 4]) - min(data[:, 4]))
-            ) * 2 - 1
-            """
-            data[:, 2] = (
-                (data[:, 2] - self.min_position_x[ind_directory]) / (self.max_position_x[ind_directory] - self.min_position_x[ind_directory])
-            ) * 2 - 1
-            data[:, 3] = (
-                (data[:, 3] - self.min_position_y[ind_directory]) / (self.max_position_y[ind_directory] - self.min_position_y[ind_directory])
-            ) * 2 - 1
-            # 新增对航向的归一化
-            data[:, 4] = (
-                (data[:, 4] - self.min_heading[ind_directory]) / (self.max_heading[ind_directory] - self.min_heading[ind_directory])
-            ) * 2 - 1
+            # 计算当前数据集的极值
+            current_min_x = np.min(data[:, 2])
+            current_max_x = np.max(data[:, 2])
+            current_min_y = np.min(data[:, 3])
+            current_max_y = np.max(data[:, 3])
+            current_min_h = np.min(data[:, 4])
+            current_max_h = np.max(data[:, 4])
+            print(f"\n数据集 {ind_directory} 原始范围:")
+            print(f"  X: [{current_min_x:.3f}, {current_max_x:.3f}]")
+            print(f"  Y: [{current_min_y:.3f}, {current_max_y:.3f}]")
+            print(f"  Heading: [{current_min_h:.3f}, {current_max_h:.3f}]")
+
+            # 存入类属性列表
+            self.min_position_x.append(current_min_x)
+            self.max_position_x.append(current_max_x)
+            self.min_position_y.append(current_min_y)
+            self.max_position_y.append(current_max_y)
+            self.min_heading.append(current_min_h)
+            self.max_heading.append(current_max_h)
+
+            self.norm_params_list.append({
+                'position': {
+                    'x': (current_min_x, current_max_x),
+                    'y': (current_min_y, current_max_y)
+                },
+                'heading': (current_min_h, current_max_h)
+            })
+
+            data[:, 2] = ((data[:, 2] - current_min_x) / (current_max_x - current_min_x)) * 2 - 1
+            data[:, 3] = ((data[:, 3] - current_min_y) / (current_max_y - current_min_y)) * 2 - 1
+            data[:, 4] = ((data[:, 4] - current_min_h) / (current_max_h - current_min_h)) * 2 - 1
 
             # data = data[~(data[:, 2] == 5)]
 
@@ -298,15 +259,6 @@ class DataLoader:
                     # Add their pedID, x, y, heading to the row of the numpy array
                     pedsWithPos.append([ped, current_x, current_y, current_heading, current_type])
 
-                # if (ind > numFrames * self.val_fraction) or self.infer:
-                #     # At inference time, no validation data
-                #     # Add the details of all the peds in the current frame to all_frame_data
-                #     all_frame_data[dataset_index].append(
-                #         np.array(pedsWithPos)
-                #     )  # different frame (may) have different number person
-                # else:
-                #     valid_frame_data[dataset_index].append(np.array(pedsWithPos))
-                # 删除验证集
                 all_frame_data[dataset_index].append( np.array(pedsWithPos))
 
 
@@ -429,51 +381,6 @@ class DataLoader:
 
         return x_batch, frame_batch, d
 
-    # def next_valid_batch(self):
-    #     """
-    #     Function to get the next Validation batch of points
-    #     """
-    #     # Source data
-    #     x_batch = []
-    #     # Target data
-    #     # y_batch = []
-    #     # Dataset data
-    #     d = []
-    #     # Iteration index
-    #     i = 0
-    #     while i < self.batch_size:
-    #         # Extract the frame data of the current dataset
-    #         frame_data = self.valid_data[self.valid_dataset_pointer]
-    #         # Get the frame pointer for the current dataset
-    #         idx = self.valid_frame_pointer
-    #         # While there is still seq_length number of frames left in the current dataset
-    #         if idx + self.seq_length+1 <= len(frame_data):
-    #             # All the data in this sequence
-    #             # seq_frame_data = frame_data[idx:idx+self.seq_length+1]
-    #             seq_source_frame_data = frame_data[idx : idx + self.seq_length+1]
-    #             # seq_target_frame_data = frame_data[idx + 1 : idx + self.obs_length + 1]
-    #
-    #             # Number of unique peds in this sequence of frames
-    #             x_batch.append(seq_source_frame_data)
-    #             # y_batch.append(seq_target_frame_data)
-    #
-    #             # advance the frame pointer to a random point
-    #             # if randomUpdate:
-    #             #     self.valid_frame_pointer += random.randint(1, self.obs_length)
-    #             # else:
-    #             #     self.valid_frame_pointer += 1
-    #             #
-    #             # d.append(self.valid_dataset_pointer)
-    #             # i += 1
-    #             self.frame_pointer += 1
-    #             i += 1
-    #
-    #         else:
-    #             # Not enough frames left
-    #             # Increment the dataset pointer and set the frame_pointer to zero
-    #             self.tick_batch_pointer(valid=True)
-    #
-    #     return x_batch, d
 
     def tick_batch_pointer(self, valid=False):
         """

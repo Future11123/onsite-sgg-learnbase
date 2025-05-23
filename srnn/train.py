@@ -120,26 +120,11 @@ def main():
 def train(args):
     # Construct the DataLoader object
     dataloader = DataLoader(args.batch_size, args.obs_length + 1, forcePreProcess=True)
-    norm_params = {
-        'min_position_x': dataloader.min_position_x,
-        'max_position_x': dataloader.max_position_x,
-        'min_position_y': dataloader.min_position_y,
-        'max_position_y': dataloader.max_position_y,
-    }
-
-    # norm_params = dataloader.get_normalization_params()  # 获取全局归一化参数
-    # print(norm_params)
-    # print("验证归一化参数:")
-    # print(f"X范围: {norm_params['position']['x']}")
-    # print(f"Y范围: {norm_params['position']['y']}")
-    # print(f"Heading范围: {norm_params['heading']}")
-
-
+    norm_params_list = dataloader.norm_params_list
 
     seq_length = dataloader.seq_length
     # Construct the ST-graph object
-    stgraph = ST_GRAPH(batch_size=args.batch_size,norm_params=norm_params )
-
+    stgraph = ST_GRAPH(batch_size=args.batch_size,norm_params_list = dataloader.norm_params_list )
 
     # Log directory
     log_directory = "../log/"
@@ -200,10 +185,19 @@ def train(args):
             # For each sequence in the batch
             for sequence in range(dataloader.batch_size):
                 dataset_index = d[sequence]
+                current_norm_params = dataloader.get_normalization_params(dataset_index)
+                print(f"\n当前数据集 {dataset_index} 归一化参数:")
+                print(
+                    f"  X范围: [{current_norm_params['position']['x'][0]:.3f}, {current_norm_params['position']['x'][1]:.3f}]")
+                print(
+                    f"  Y范围: [{current_norm_params['position']['y'][0]:.3f}, {current_norm_params['position']['y'][1]:.3f}]")
+                print(
+                    f"  Heading范围: [{current_norm_params['heading'][0]:.3f}, {current_norm_params['heading'][1]:.3f}]")
+
                 # 获取当前sequence对应的xodr数据
                 road_data_batch = dataloader.xodr_data[dataset_index]
                 # Construct the graph for the current sequence
-                stgraph.readGraph([x[sequence]],current_seq_length,road_data_batch)
+                stgraph.readGraph([x[sequence]],current_seq_length,road_data_batch, dataset_index)
                 nodes, edges, nodesPresent, edgesPresent = stgraph.getSequence(current_seq_length)
                 # Convert to cuda variables
                 nodes = Variable(torch.from_numpy(nodes).float())
@@ -297,7 +291,7 @@ def train(args):
                     nodesPresent[:],
                     args.obs_length,
                     seq_length,
-                    d[0],args,nodes,norm_params
+                    d[0],args,nodes,norm_params=current_norm_params
                 )
                 # Compute loss
                 # loss = Gaussian2DLikelihood(
