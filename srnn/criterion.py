@@ -104,7 +104,7 @@ def Gaussian2DLikelihood(outputs, targets, nodesPresent, obs_length, seq_length,
     # 运动学参数计算（保留用户原始实现）
     theta = outputs_denorm[:, :, 5]
 
-    time_interval = 1
+    time_interval = 0.1
 
     # 速度计算（注意时间步范围）
     v_x = (outputs_denorm[1:, :, 0] - outputs_denorm[:-1, :, 0])/time_interval

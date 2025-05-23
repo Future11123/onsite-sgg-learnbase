@@ -21,9 +21,6 @@ os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 def main():
     parser = argparse.ArgumentParser()
 
-    # torch.manual_seed(42)
-    # torch.cuda.manual_seed(42)
-
     # RNN size
     parser.add_argument(
         "--node_rnn_size",
@@ -120,7 +117,6 @@ def main():
 def train(args):
     # Construct the DataLoader object
     dataloader = DataLoader(args.batch_size, args.obs_length + 1, forcePreProcess=True)
-    norm_params_list = dataloader.norm_params_list
 
     seq_length = dataloader.seq_length
     # Construct the ST-graph object
@@ -168,12 +164,12 @@ def train(args):
             # Get batch data
             x,  _, d = dataloader.next_batch()
 
-            norm_params = dataloader.get_normalization_params(d[0])  # 获取全局归一化参数
-            print(norm_params)
-            print("验证归一化参数:")
-            print(f"X范围: {norm_params['position']['x']}")
-            print(f"Y范围: {norm_params['position']['y']}")
-            print(f"Heading范围: {norm_params['heading']}")
+            # norm_params = dataloader.get_normalization_params(d[0])  # 获取全局归一化参数
+            # print(norm_params)
+            # print("验证归一化参数:")
+            # print(f"X范围: {norm_params['position']['x']}")
+            # print(f"Y范围: {norm_params['position']['y']}")
+            # print(f"Heading范围: {norm_params['heading']}")
 
             # 获取当前数据集的 seq_length
             current_dataset_index = d[0]
@@ -193,6 +189,18 @@ def train(args):
                     f"  Y范围: [{current_norm_params['position']['y'][0]:.3f}, {current_norm_params['position']['y'][1]:.3f}]")
                 print(
                     f"  Heading范围: [{current_norm_params['heading'][0]:.3f}, {current_norm_params['heading'][1]:.3f}]")
+
+                road_data_batch = dataloader.xodr_data[dataset_index]
+                all_x = []
+                all_y = []
+                for road in road_data_batch[0]:  # 注意road_data_batch结构是[coordinates_data]
+                    for lane in road['lanes']:
+                        for coord in lane['coordinates']:
+                            all_x.append(coord[0])
+                            all_y.append(coord[1])
+                print(f"XODR文件原始坐标范围:")
+                print(f"X: [{min(all_x):.2f}, {max(all_x):.2f}]")
+                print(f"Y: [{min(all_y):.2f}, {max(all_y):.2f}]\n")
 
                 # 获取当前sequence对应的xodr数据
                 road_data_batch = dataloader.xodr_data[dataset_index]
@@ -329,115 +337,6 @@ def train(args):
         # Log it
         log_file_curve.write(str(epoch) + "," + str(loss_epoch) + ",")
 
-        # Validation
-        # dataloader.reset_batch_pointer(valid=True)
-        # loss_epoch = 0
-        #
-        # for batch in range(dataloader.valid_num_batches):
-        #     # Get batch data
-        #
-        #     x,  d = dataloader.next_valid_batch()
-        #
-        #     # Loss for this batch
-        #     loss_batch = 0
-        #
-        #     for sequence in range(dataloader.batch_size):
-        #         stgraph.readGraph([x[sequence]])
-        #
-        #         nodes, edges, nodesPresent, edgesPresent = stgraph.getSequence()
-        #
-        #         # Convert to cuda variables
-        #         nodes = Variable(torch.from_numpy(nodes).float())
-        #         if args.use_cuda:
-        #             nodes = nodes.cuda()
-        #         edges = Variable(torch.from_numpy(edges).float())
-        #         if args.use_cuda:
-        #             edges = edges.cuda()
-        #
-        #         # Define hidden states
-        #         numNodes = nodes.size()[1]
-        #
-        #         hidden_states_node_RNNs = Variable(
-        #             torch.zeros(numNodes, args.node_rnn_size)
-        #         )
-        #         if args.use_cuda:
-        #             hidden_states_node_RNNs = hidden_states_node_RNNs.cuda()
-        #
-        #         hidden_states_edge_RNNs = Variable(
-        #             torch.zeros(numNodes * numNodes, args.edge_rnn_size)
-        #         )
-        #         if args.use_cuda:
-        #             hidden_states_edge_RNNs = hidden_states_edge_RNNs.cuda()
-        #         cell_states_node_RNNs = Variable(
-        #             torch.zeros(numNodes, args.node_rnn_size)
-        #         )
-        #         if args.use_cuda:
-        #             cell_states_node_RNNs = cell_states_node_RNNs.cuda()
-        #         cell_states_edge_RNNs = Variable(
-        #             torch.zeros(numNodes * numNodes, args.edge_rnn_size)
-        #         )
-        #         if args.use_cuda:
-        #             cell_states_edge_RNNs = cell_states_edge_RNNs.cuda()
-        #
-        #         hidden_states_super_node_RNNs = Variable(
-        #             torch.zeros(3, args.node_rnn_size)
-        #         )
-        #         if args.use_cuda:
-        #             hidden_states_super_node_RNNs = hidden_states_super_node_RNNs.cuda()
-        #
-        #         cell_states_super_node_RNNs = Variable(
-        #             torch.zeros(3, args.node_rnn_size)
-        #         )
-        #         if args.use_cuda:
-        #             cell_states_super_node_RNNs = cell_states_super_node_RNNs.cuda()
-        #
-        #         hidden_states_super_node_Edge_RNNs = Variable(
-        #             torch.zeros(3, args.edge_rnn_size)
-        #         )
-        #         if args.use_cuda:
-        #             hidden_states_super_node_Edge_RNNs = (
-        #                 hidden_states_super_node_Edge_RNNs.cuda()
-        #             )
-        #
-        #         cell_states_super_node_Edge_RNNs = Variable(
-        #             torch.zeros(3, args.edge_rnn_size)
-        #         )
-        #         if args.use_cuda:
-        #             cell_states_super_node_Edge_RNNs = (
-        #                 cell_states_super_node_Edge_RNNs.cuda()
-        #             )
-        #
-        #         outputs, _, _, _, _, _, _, _, _, _ = net(
-        #             nodes[: args.seq_length],
-        #             edges[: args.seq_length],
-        #             nodesPresent[:-1],
-        #             edgesPresent[:-1],
-        #             hidden_states_node_RNNs,
-        #             hidden_states_edge_RNNs,
-        #             cell_states_node_RNNs,
-        #             cell_states_edge_RNNs,
-        #             hidden_states_super_node_RNNs,
-        #             hidden_states_super_node_Edge_RNNs,
-        #             cell_states_super_node_RNNs,
-        #             cell_states_super_node_Edge_RNNs,
-        #         )
-        #
-        #         # Compute loss
-        #         loss = Gaussian2DLikelihood(
-        #             outputs, nodes[1:], nodesPresent[1:], args.pred_length
-        #         )
-        #
-        #         loss_batch += loss.item()
-        #
-        #         # Reset the stgraph
-        #         stgraph.reset()
-        #
-        #     loss_batch = loss_batch / dataloader.batch_size
-        #     loss_epoch += loss_batch
-        #
-        # loss_epoch = loss_epoch / dataloader.valid_num_batches
-
-        # Update best loss until now
 
         if loss_epoch < best_loss:
             best_loss = loss_epoch
