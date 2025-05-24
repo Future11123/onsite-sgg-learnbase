@@ -18,10 +18,11 @@ def denormalize(normalized_value, feature_type, norm_params):
 
     denorm_value = (normalized_value + 1) * (max_val - min_val) / 2 + min_val
 
-    torch.clamp(denorm_value, min_val, max_val)  # 直接限制在合法范围
+    denorm_value = torch.clamp(denorm_value, min_val, max_val)
 
     # 反归一化公式（与之前的归一化公式对应）
     return denorm_value
+
 def calculate_displacement_errors(pred_traj, gt_traj):
     """
     计算平均位移误差(ADE)和最终位移误差(FDE)
@@ -54,17 +55,17 @@ def Gaussian2DLikelihood(outputs, targets, nodesPresent, obs_length, seq_length,
     # 获取分布参数
     seq_length = seq_length[dataset_index]
     numNodes = nodes.size()[1]
-    with torch.no_grad():
-        # 把第一个参数转换为元组
-        ret_nodes = torch.zeros((seq_length, numNodes, 2))
+
+    ret_nodes = torch.zeros((seq_length, numNodes, 2),
+                            device=outputs.device,  # 保持设备一致
+                            requires_grad=False)  # 允许梯度传播
+
     for tstep in range(obs_length - 1, seq_length - 1):
-        mux, muy, sx, sy, corr = getCoef(outputs)
+        mux, muy, sx, sy, corr = getCoef(outputs[tstep])
         next_x, next_y = sample_gaussian_2d(
-            mux.data,
-            muy.data,
-            sx.data,
-            sy.data,
-            corr.data,
+            mux,muy,
+            sx,sy,
+            corr,
             nodesPresent[args.obs_length - 1],
         )
         ret_nodes[tstep + 1, :, 0] = next_x
@@ -170,10 +171,10 @@ def Gaussian2DLikelihood(outputs, targets, nodesPresent, obs_length, seq_length,
 
         # 处理全零范围的情况
         if max_val - min_val < 1e-6:
-            return torch.tensor(0.0, device=device)
+            return torch.tensor(0.0, device=pred.device)
 
         # 生成可微分的bin中心
-        bin_centers = torch.linspace(min_val, max_val, num_bins, device=device)
+        bin_centers = torch.linspace(min_val, max_val, num_bins, device=pred.device)
 
         # 计算核密度估计（可微分操作）
         def kde(x):
@@ -185,14 +186,14 @@ def Gaussian2DLikelihood(outputs, targets, nodesPresent, obs_length, seq_length,
 
         # 计算概率分布
         pred_dist = kde(pred) + 1e-8
-        real_dist = kde(real) + 1e-8
+        real_dist = kde(real.detach()) + 1e-8
 
         # 正则化概率分布
         pred_dist = pred_dist / pred_dist.sum()
         real_dist = real_dist / real_dist.sum()
 
         # 计算反向KL散度（更稳定）
-        return F.kl_div(torch.log(pred_dist), real_dist, reduction='sum')
+        return F.kl_div(torch.log(pred_dist), real_dist, reduction='batchmean')
 
     # ==================== 运动特征提取 ====================
     seq_len, num_nodes = nodes_real_denorm.shape[:2]
@@ -290,7 +291,8 @@ def Gaussian2DLikelihood(outputs, targets, nodesPresent, obs_length, seq_length,
         loss_B /= 3  # 三个子指标平均
 
         # 总损失计算（动态权重平衡）
-        total_loss = loss_pos + loss_heading + 0.1 * loss_dynamics + 0.05 * loss_B + ade + fde
+        # total_loss = loss_pos + loss_heading + 0.1 * loss_dynamics + 0.05 * loss_B + ade + fde
+        total_loss = loss_pos + loss_heading + 0.1 * loss_dynamics + 0.05 * loss_B
 
         # 调试输出（保留原始格式）
         print('[Loss Breakdown]')

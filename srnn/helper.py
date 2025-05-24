@@ -57,68 +57,145 @@ def getMagnitudeAndDirection(*args):
         )
 
 
+# def getCoef(outputs):
+#     """
+#     Extracts the mean, standard deviation and correlation
+#     params:
+#     outputs : Output of the SRNN model
+#     """
+#     mux, muy, sx, sy, corr = (
+#         outputs[:, :, 0],
+#         outputs[:, :, 1],
+#         outputs[:, :, 2],
+#         outputs[:, :, 3],
+#         outputs[:, :, 4],
+#     )
+#
+#     # Exponential to get a positive value for std dev
+#     sx = torch.exp(sx)
+#     sy = torch.exp(sy)
+#     # tanh to get a value between [-1, 1] for correlation
+#     corr = torch.tanh(corr)
+#     return mux, muy, sx, sy, corr
+
+
+
 def getCoef(outputs):
     """
-    Extracts the mean, standard deviation and correlation
-    params:
-    outputs : Output of the SRNN model
+    提取均值、标准差和相关系数参数，支持二维和三维输入。
+    输入维度：
+        - 三维：[时间步, 节点数, 5]（如完整序列输出）
+        - 二维：[节点数, 5]（如单时间步输出）
     """
-    mux, muy, sx, sy, corr = (
-        outputs[:, :, 0],
-        outputs[:, :, 1],
-        outputs[:, :, 2],
-        outputs[:, :, 3],
-        outputs[:, :, 4],
-    )
+    # 处理二维输入（自动添加时间步维度）
+    if outputs.dim() == 2:
+        outputs = outputs.unsqueeze(0)  # 变为 [1, 节点数, 5]
 
-    # Exponential to get a positive value for std dev
-    sx = torch.exp(sx)
+    # 提取参数
+    mux = outputs[:, :, 0]  # 形状 [时间步, 节点数]
+    muy = outputs[:, :, 1]
+    sx = outputs[:, :, 2]
+    sy = outputs[:, :, 3]
+    corr = outputs[:, :, 4]
+
+    # 数值变换
+    sx = torch.exp(sx)        # 确保标准差为正
     sy = torch.exp(sy)
-    # tanh to get a value between [-1, 1] for correlation
-    corr = torch.tanh(corr)
+    corr = torch.tanh(corr)   # 限制相关系数在 [-1, 1]
+
+    # 如果是二维输入，压缩时间步维度
+    if outputs.size(0) == 1:
+        mux = mux.squeeze(0)  # 变回 [节点数]
+        muy = muy.squeeze(0)
+        sx = sx.squeeze(0)
+        sy = sy.squeeze(0)
+        corr = corr.squeeze(0)
+
     return mux, muy, sx, sy, corr
+
+
+# def sample_gaussian_2d(mux, muy, sx, sy, corr, nodesPresent):
+#     """
+#     Returns samples from 2D Gaussian defined by the parameters
+#     params:
+#     mux, muy, sx, sy, corr : a tensor of shape 1 x numNodes
+#     Contains x-means, y-means, x-stds, y-stds and correlation
+#     nodesPresent : a list of nodeIDs present in the frame
+#
+#     returns:
+#     next_x, next_y : a tensor of shape numNodes
+#     Contains sampled values from the 2D gaussian
+#     """
+#     o_mux, o_muy, o_sx, o_sy, o_corr = (
+#         mux[0, :],
+#         muy[0, :],
+#         sx[0, :],
+#         sy[0, :],
+#         corr[0, :],
+#     )
+#     nodesPresent = [t[0] for t in nodesPresent]
+#     numNodes = mux.size()[1]
+#
+#     next_x = torch.zeros(numNodes)
+#     next_y = torch.zeros(numNodes)
+#     for node in range(numNodes):
+#         if node not in nodesPresent:
+#             continue
+#         mean = [o_mux[node], o_muy[node]]
+#         cov = [
+#             [o_sx[node] * o_sx[node], o_corr[node] * o_sx[node] * o_sy[node]],
+#             [o_corr[node] * o_sx[node] * o_sy[node], o_sy[node] * o_sy[node]],
+#         ]
+#         mean = [each.item() for each in mean]
+#         cov[0][0] = cov[0][0].item()
+#         cov[0][1] = cov[0][1].item()
+#         cov[1][0] = cov[1][0].item()
+#         cov[1][1] = cov[1][1].item()
+#         next_values = np.random.multivariate_normal(mean, cov, 1)
+#         next_x[node] = next_values[0][0]
+#         next_y[node] = next_values[0][1]
+#
+#     return next_x, next_y
 
 
 def sample_gaussian_2d(mux, muy, sx, sy, corr, nodesPresent):
     """
-    Returns samples from 2D Gaussian defined by the parameters
-    params:
-    mux, muy, sx, sy, corr : a tensor of shape 1 x numNodes
-    Contains x-means, y-means, x-stds, y-stds and correlation
-    nodesPresent : a list of nodeIDs present in the frame
-
-    returns:
-    next_x, next_y : a tensor of shape numNodes
-    Contains sampled values from the 2D gaussian
+    使用重参数化技巧实现可导的高斯采样，增加维度兼容性处理
     """
-    o_mux, o_muy, o_sx, o_sy, o_corr = (
-        mux[0, :],
-        muy[0, :],
-        sx[0, :],
-        sy[0, :],
-        corr[0, :],
-    )
-    nodesPresent = [t[0] for t in nodesPresent]
-    numNodes = mux.size()[1]
+    # 确保所有参数至少为二维（如 [时间步=1, 节点数]）
+    if mux.dim() == 1:
+        mux = mux.unsqueeze(0)
+        muy = muy.unsqueeze(0)
+        sx = sx.unsqueeze(0)
+        sy = sy.unsqueeze(0)
+        corr = corr.unsqueeze(0)
 
-    next_x = torch.zeros(numNodes)
-    next_y = torch.zeros(numNodes)
+    device = mux.device
+    numNodes = mux.shape[1]  # 现在能正确获取节点数
+    next_x = torch.zeros(numNodes, device=device)
+    next_y = torch.zeros(numNodes, device=device)
+
+    nodesPresent = [node[0] for node in nodesPresent]  # 假设输入格式为[[node1], [node2]]
+
     for node in range(numNodes):
         if node not in nodesPresent:
             continue
-        mean = [o_mux[node], o_muy[node]]
-        cov = [
-            [o_sx[node] * o_sx[node], o_corr[node] * o_sx[node] * o_sy[node]],
-            [o_corr[node] * o_sx[node] * o_sy[node], o_sy[node] * o_sy[node]],
-        ]
-        mean = [each.item() for each in mean]
-        cov[0][0] = cov[0][0].item()
-        cov[0][1] = cov[0][1].item()
-        cov[1][0] = cov[1][0].item()
-        cov[1][1] = cov[1][1].item()
-        next_values = np.random.multivariate_normal(mean, cov, 1)
-        next_x[node] = next_values[0][0]
-        next_y[node] = next_values[0][1]
+
+        # 构建协方差矩阵（添加小量确保正定性）
+        cov_xx = sx[0, node]  ** 2 + 1e-5
+        cov_yy = sy[0, node]  ** 2 + 1e-5
+        cov_xy = corr[0, node] * sx[0, node] * sy[0, node]
+
+        mean = torch.stack([mux[0, node], muy[0, node]])
+        cov_matrix = torch.tensor([[cov_xx, cov_xy],
+                                   [cov_xy, cov_yy]], device=device)
+
+        # 使用重参数化技巧采样
+        dist = torch.distributions.MultivariateNormal(mean, cov_matrix)
+        sample = dist.rsample()  # 可导采样
+
+        next_x[node] = sample[0]
+        next_y[node] = sample[1]
 
     return next_x, next_y
 
