@@ -934,14 +934,57 @@ class SRNN(nn.Module):
         if self.use_cuda:
             outputs_return = outputs_return.cuda()
 
+        # for framenum in range(current_seq_length):
+        #     # for node_info in range(numNodes):
+        #     for node_info in nodesPresent[framenum]:
+        #         node_idx, node_type = node_info
+        #         if node_type == 3:  # 车辆类型
+        #             outputs_return[framenum, node_idx, :] = outputs[
+        #                 framenum * numNodes + node_idx, :
+        #             ]
+        # 修改后的代码
+
+        outputs_list = []  # 用于存储各时间步的车辆节点数据
+
         for framenum in range(current_seq_length):
-            # for node_info in range(numNodes):
-            for node_info in nodesPresent[framenum]:
-                node_idx, node_type = node_info
-                if node_type == 3:  # 车辆类型
-                    outputs_return[framenum, node_idx, :] = outputs[
-                        framenum * numNodes + node_idx, :
-                    ]
+            # 收集当前帧的车辆节点信息
+            vehicle_nodes = [
+                node_info
+                for node_info in nodesPresent[framenum]
+                if node_info[1] == 3  # 3代表车辆类型
+            ]
+
+            # 提取对应的输出数据
+            if vehicle_nodes:
+                # 获取节点索引列表
+                node_indices = [node[0] for node in vehicle_nodes]
+
+                # 从扁平化输出中提取当前时间步的数据
+                frame_start = framenum * numNodes
+                frame_data = outputs[frame_start: frame_start + numNodes]
+
+                # 筛选车辆数据
+                vehicle_data = frame_data[node_indices]
+                outputs_list.append(vehicle_data)
+            else:
+                # 如果没有车辆节点，添加空张量保持维度一致
+                outputs_list.append(torch.zeros((0, self.output_size), device=outputs.device))
+
+        # 计算最大车辆节点数用于填充
+        max_vehicles = max(data.size(0) for data in outputs_list)
+
+        # 创建最终输出张量并进行填充
+        outputs_return = torch.zeros(
+            current_seq_length,
+            max_vehicles,
+            self.output_size,
+            device=outputs.device
+        )
+
+        for framenum, data in enumerate(outputs_list):
+            if data.size(0) > 0:
+                outputs_return[framenum, :data.size(0)] = data
+
 
         # return outputs_return
         return (

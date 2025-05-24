@@ -333,61 +333,132 @@ class ST_GRAPH:
         """
         self.seq_length = seq_length
 #########################################################################################
-        # nodes = self.nodes[0]
-        # edges = self.edges[0]
-        nodes = {**self.nodes[0], **self.road_nodes[0]}  # 合并移动节点和道路节点
+        vehicle_nodes = {k: v for k, v in self.nodes[0].items() if v.node_type == 3}
+        road_nodes = self.road_nodes[0]
+
+        nodes = {**vehicle_nodes, ** road_nodes}
+        # nodes = {**self.nodes[0], **self.road_nodes[0]}  # 合并移动节点和道路节点
         edges = {**self.edges[0], ** self.static_edges[0]}  # 合并动态边和静态边
 #########################################################################################
 
         numNodes = len(nodes.keys())
+        num_vehicle_nodes  = len(vehicle_nodes.keys())
         # print("********************* numNodes {}***********".format(numNodes))
         list_of_nodes = {}
 
+        # retNodes = np.zeros((self.seq_length, numNodes_vehicle, 3), dtype=np.float32)
         retNodes = np.zeros((self.seq_length, numNodes, 3), dtype=np.float32)
+        vehicle_retNodes = np.zeros((self.seq_length, num_vehicle_nodes, 3), dtype=np.float32)  # 新增车辆专用
         retEdges = np.zeros((self.seq_length, numNodes * numNodes, 2), dtype=np.float16)  # Diagonal contains temporal edges
         retNodePresent = [[] for c in range(self.seq_length)]
+        vehicle_retNodePresent = [[] for _ in range(self.seq_length)]  # 新增车辆专用
         retEdgePresent = [[] for c in range(self.seq_length)]
 
-        # retNodes_type = [[] for c in range(self.seq_length)]
-        # retEdges_type = [[] for c in range(self.seq_length)]
-
+        # 创建两个索引映射表
+        all_index_map = {}
+        vehicle_index_map = {}
         for i, ped in enumerate(nodes.keys()):
-            list_of_nodes[ped] = i
-            pos_list = nodes[ped].node_pos_list
-            node_type = nodes[ped].getType()  # 获取节点类型
+            all_index_map[ped] = i
+            if nodes[ped].node_type == 3:  # 单独记录车辆索引
+                vehicle_index_map[ped] = len(vehicle_index_map)
+
+        # 填充数据
+        for ped in nodes.keys():
+            node = nodes[ped]
+            node_type = node.node_type
+            pos_list = node.node_pos_list
+
+            # 通用填充（包含所有节点）
             for framenum in range(self.seq_length):
                 if framenum in pos_list:
-                    retNodePresent[framenum].append((i, node_type))
-                    retNodes[framenum, i, :] = list(pos_list[framenum])
-                    # retNodes_type[framenum].append(nodes[ped].getType())
+                    global_idx = all_index_map[ped]
+                    # 记录存在的节点索引和类型
+                    retNodePresent[framenum].append((global_idx, node_type))
+                    # 填充坐标和航向
+                    retNodes[framenum, global_idx, :] = pos_list[framenum]
 
-        for ped, ped_other in edges.keys():
-            i, j = list_of_nodes[ped], list_of_nodes[ped_other]
-            edge = edges[(ped, ped_other)]
-            if ped == ped_other:
-                # Temporal edge
-                for framenum in range(self.seq_length):
-                    if framenum in edge.edge_pos_list:
-                        retEdgePresent[framenum].append((i, j, edge.getType()))
-                        retEdges[framenum, i * (numNodes) + j, :] = getVector(
-                            edge.edge_pos_list[framenum]
-                        )  # Gets the vector pointing from second element to first element
+                    # 车辆专用填充
+                    if node_type == 3:
+                        vehicle_idx = vehicle_index_map[ped]
+                        vehicle_retNodePresent[framenum].append((vehicle_idx, node_type))
+                        vehicle_retNodes[framenum, vehicle_idx, :] = pos_list[framenum]
+        # 修改后的边处理部分
+        edge_count = 0
+        for edge_key in edges.keys():
+            ped, ped_other = edge_key
+            # 确保两个节点都在映射表中
+            if ped not in all_index_map or ped_other not in all_index_map:
+                continue  # 跳过无效的边
+
+            i = all_index_map[ped]
+            j = all_index_map[ped_other]
+            edge = edges[edge_key]
+
+            # 处理边的类型转换（如果edge_type是字符串）
+            if isinstance(edge.edge_type, str):
+                edge_type = ST_EDGE.EDGE_TYPES.get(edge.edge_type, 0)
             else:
-                # Spatial edge
+                edge_type = edge.edge_type
+
+            # 原有边填充逻辑
+            if ped == ped_other:  # Temporal边
                 for framenum in range(self.seq_length):
                     if framenum in edge.edge_pos_list:
-                        retEdgePresent[framenum].append((i, j, edge.getType()))
-                        retEdgePresent[framenum].append((j, i, edge.getType()))
-                        # the position returned is a tuple of tuples
+                        retEdgePresent[framenum].append((i, j, edge_type))
+                        if edge_count < retEdges.shape[1]:  # 防止越界
+                            retEdges[framenum, edge_count, :] = getVector(edge.edge_pos_list[framenum])
+                        edge_count += 1
+            else:  # Spatial边
+                for framenum in range(self.seq_length):
+                    if framenum in edge.edge_pos_list:
+                        retEdgePresent[framenum].extend([(i, j, edge_type), (j, i, edge_type)])
+                        if edge_count < retEdges.shape[1]:
+                            # 正向边
+                            retEdges[framenum, edge_count, :] = getVector(edge.edge_pos_list[framenum])
+                            edge_count += 1
+                            # 反向边
+                            retEdges[framenum, edge_count, :] = -retEdges[framenum, edge_count - 1, :]
+                            edge_count += 1
 
-                        retEdges[framenum, i * numNodes + j, :] = getVector(
-                            edge.edge_pos_list[framenum]
-                        )
-                        retEdges[framenum, j * numNodes + i, :] = -np.copy(
-                            retEdges[framenum, i * (numNodes) + j, :]
-                        )
 
-        return retNodes, retEdges, retNodePresent, retEdgePresent
+        # for i, ped in enumerate(nodes.keys()):
+        #     list_of_nodes[ped] = i
+        #     pos_list = nodes[ped].node_pos_list
+        #     node_type = nodes[ped].getType()  # 获取节点类型
+        #     # if node_type == 3:  # 仅处理车辆节点
+        #     for framenum in range(self.seq_length):
+        #         if framenum in pos_list:
+        #             # 记录存在的节点索引和类型
+        #             retNodePresent[framenum].append((i, node_type))
+        #             # 填充坐标和航向
+        #             retNodes[framenum, i, :] = list(pos_list[framenum])
+        # for ped, ped_other in edges.keys():
+        #     i, j = list_of_nodes[ped], list_of_nodes[ped_other]
+        #     edge = edges[(ped, ped_other)]
+        #     if ped == ped_other:
+        #         # Temporal edge
+        #         for framenum in range(self.seq_length):
+        #             if framenum in edge.edge_pos_list:
+        #                 retEdgePresent[framenum].append((i, j, edge.getType()))
+        #                 retEdges[framenum, i * (numNodes) + j, :] = getVector(
+        #                     edge.edge_pos_list[framenum]
+        #                 )  # Gets the vector pointing from second element to first element
+        #     else:
+        #         # Spatial edge
+        #         for framenum in range(self.seq_length):
+        #             if framenum in edge.edge_pos_list:
+        #                 retEdgePresent[framenum].append((i, j, edge.getType()))
+        #                 retEdgePresent[framenum].append((j, i, edge.getType()))
+        #                 # the position returned is a tuple of tuples
+        #
+        #                 retEdges[framenum, i * numNodes + j, :] = getVector(
+        #                     edge.edge_pos_list[framenum]
+        #                 )
+        #                 retEdges[framenum, j * numNodes + i, :] = -np.copy(
+        #                     retEdges[framenum, i * (numNodes) + j, :]
+        #                 )
+
+        return retNodes, retEdges, retNodePresent, retEdgePresent,vehicle_retNodes,vehicle_retNodePresent
 
 
 class ST_NODE:

@@ -206,7 +206,7 @@ def train(args):
                 road_data_batch = dataloader.xodr_data[dataset_index]
                 # Construct the graph for the current sequence
                 stgraph.readGraph([x[sequence]],current_seq_length,road_data_batch, dataset_index)
-                nodes, edges, nodesPresent, edgesPresent = stgraph.getSequence(current_seq_length)
+                nodes, edges, nodesPresent, edgesPresent,vehicle_nodes,vehicle_nodesPresent= stgraph.getSequence(current_seq_length)
                 # Convert to cuda variables
                 nodes = Variable(torch.from_numpy(nodes).float())
                 # nodes[0] represent all the person's corrdinate show up in  frame 0.
@@ -215,6 +215,10 @@ def train(args):
                 edges = Variable(torch.from_numpy(edges).float())
                 if args.use_cuda:
                     edges = edges.cuda()
+
+                vehicle_nodes = Variable(torch.from_numpy(vehicle_nodes).float())
+                if args.use_cuda:
+                    vehicle_nodes = vehicle_nodes.cuda()
 
                 # Define hidden states
                 numNodes = nodes.size()[1]
@@ -293,14 +297,25 @@ def train(args):
 
 
                 # 使用反归一化后的数据计算损失
+                # loss = Gaussian2DLikelihood(
+                #     outputs,  # 使用反归一化后的预测值
+                #     nodes[:],  # 使用反归一化后的真实值
+                #     nodesPresent[:],
+                #     args.obs_length,
+                #     seq_length,
+                #     d[0],args,nodes,norm_params=current_norm_params
+                # )
+
                 loss = Gaussian2DLikelihood(
                     outputs,  # 使用反归一化后的预测值
-                    nodes[:],  # 使用反归一化后的真实值
-                    nodesPresent[:],
+                    vehicle_nodes[:],  # 使用反归一化后的真实值
+                    vehicle_nodesPresent[:],
                     args.obs_length,
                     seq_length,
-                    d[0],args,nodes,norm_params=current_norm_params
+                    d[0], args, vehicle_nodes, norm_params=current_norm_params
                 )
+
+
                 # Compute loss
                 # loss = Gaussian2DLikelihood(
                 #     outputs, nodes[:], nodesPresent[:], args.obs_length,seq_length,d[0]
