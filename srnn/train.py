@@ -150,7 +150,7 @@ def train(args):
 
     # learning_rate = args.learning_rate
     logging.info("Training begin")
-    best_loss = 100
+    best_loss = 100000
     best_epoch = 0
     # Training
     for epoch in range(args.num_epochs):
