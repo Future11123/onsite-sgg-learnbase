@@ -264,8 +264,10 @@ def Gaussian2DLikelihood(outputs, targets, nodesPresent, obs_length, seq_length,
             if 1 <= framenum <= seq_length - 2:
                 a_lon_val = a_lon[framenum - 1, nodeID]
                 a_lat_val = a_lat[framenum - 1, nodeID]
-                current_loss += torch.clamp(torch.abs(a_lon_val) - 3.0, min=0)
-                current_loss += torch.clamp(torch.abs(a_lat_val) - 0.5, min=0)
+                # current_loss += torch.clamp(torch.abs(a_lon_val) - 3.0, min=0)
+                # current_loss += torch.clamp(torch.abs(a_lat_val) - 0.5, min=0)
+                current_loss += torch.clamp(torch.abs(a_lon_val) - 9.8, min=0)
+                current_loss += torch.clamp(torch.abs(a_lat_val) - 0.6, min=0)
 
             # 检查加加速度
             if 2 <= framenum <= seq_length - 3:
@@ -277,7 +279,8 @@ def Gaussian2DLikelihood(outputs, targets, nodesPresent, obs_length, seq_length,
             # 检查横摆角速度
             if 1 <= framenum <= seq_length - 2:
                 yaw_val = yaw_rate[framenum - 1, nodeID]
-                current_loss += torch.clamp(torch.abs(yaw_val) - 0.5, min=0)
+                # current_loss += torch.clamp(torch.abs(yaw_val) - 0.5, min=0)
+                current_loss += torch.clamp(torch.abs(yaw_val) - 0.7, min=0)
 
             loss_dynamics += current_loss
             counter += 1
