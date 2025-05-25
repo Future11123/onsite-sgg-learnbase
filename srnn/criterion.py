@@ -291,7 +291,7 @@ def Gaussian2DLikelihood(outputs, targets, nodesPresent, obs_length, seq_length,
         loss_B /= 3  # 三个子指标平均
 
         # 总损失计算（动态权重平衡）
-        total_loss = loss_pos + loss_heading + 0.1 * loss_dynamics + 0.05 * loss_B + ade + fde
+        total_loss = loss_pos + loss_heading + 0.1 * loss_dynamics + 0.05 * loss_B + 0.3 * ade + 0.3 * fde
         # total_loss = loss_pos + loss_heading + 0.1 * loss_dynamics + 0.05 * loss_B
 
         # 调试输出（保留原始格式）
