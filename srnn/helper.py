@@ -111,6 +111,11 @@ def getCoef(outputs):
         sy = sy.squeeze(0)
         corr = corr.squeeze(0)
 
+    # 数值稳定性增强
+    sx = torch.clamp(torch.exp(sx), min=0.1)  # 防止过小
+    sy = torch.clamp(torch.exp(sy), min=0.1)
+    corr = torch.clamp(torch.tanh(corr), min=-0.99, max=0.99)  # 限制相关系数范围
+
     return mux, muy, sx, sy, corr
 
 
@@ -181,14 +186,25 @@ def sample_gaussian_2d(mux, muy, sx, sy, corr, nodesPresent):
         if node not in nodesPresent:
             continue
 
-        # 构建协方差矩阵（添加小量确保正定性）
-        cov_xx = sx[0, node]  ** 2 + 1e-5
-        cov_yy = sy[0, node]  ** 2 + 1e-5
-        cov_xy = corr[0, node] * sx[0, node] * sy[0, node]
+        # 增加数值稳定性
+        sx_val = max(sx[0, node].item(), 0.1)  # 确保最小值
+        sy_val = max(sy[0, node].item(), 0.1)
+        corr_val = np.clip(corr[0, node].item(), -0.99, 0.99)
 
-        mean = torch.stack([mux[0, node], muy[0, node]])
-        cov_matrix = torch.tensor([[cov_xx, cov_xy],
-                                   [cov_xy, cov_yy]], device=device)
+        # 构建协方差矩阵
+        cov_xx = sx_val ** 2 + 1e-5
+        cov_yy = sy_val ** 2 + 1e-5
+        cov_xy = corr_val * sx_val * sy_val
+
+        mean = torch.stack([mux[0, node], muy[0, node]]).float()  # 确保均值是Float
+
+        # 显式指定协方差矩阵为Float32类型
+        cov_matrix = torch.tensor(
+            [[cov_xx, cov_xy],
+             [cov_xy, cov_yy]],
+            dtype=torch.float32,  # 强制指定为Float32
+            device=device
+        )
 
         # 使用重参数化技巧采样
         dist = torch.distributions.MultivariateNormal(mean, cov_matrix)

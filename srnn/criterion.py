@@ -266,21 +266,21 @@ def Gaussian2DLikelihood(outputs, targets, nodesPresent, obs_length, seq_length,
                 a_lat_val = a_lat[framenum - 1, nodeID]
                 # current_loss += torch.clamp(torch.abs(a_lon_val) - 3.0, min=0)
                 # current_loss += torch.clamp(torch.abs(a_lat_val) - 0.5, min=0)
-                current_loss += torch.clamp(torch.abs(a_lon_val) - 9.8, min=0)
-                current_loss += torch.clamp(torch.abs(a_lat_val) - 0.6, min=0)
+                # current_loss += torch.clamp(torch.abs(a_lon_val) - 9.8, min=0)
+                # current_loss += torch.clamp(torch.abs(a_lat_val) - 0.6, min=0)
 
             # 检查加加速度
             if 2 <= framenum <= seq_length - 3:
                 jerk_lon_val = jerk_lon[framenum - 2, nodeID]
                 jerk_lat_val = jerk_lat[framenum - 2, nodeID]
-                current_loss += torch.clamp(torch.abs(jerk_lon_val) - 6.0, min=0)
-                current_loss += torch.clamp(torch.abs(jerk_lat_val) - 1.0, min=0)
+                # current_loss += torch.clamp(torch.abs(jerk_lon_val) - 6.0, min=0)
+                # current_loss += torch.clamp(torch.abs(jerk_lat_val) - 1.0, min=0)
 
             # 检查横摆角速度
             if 1 <= framenum <= seq_length - 2:
                 yaw_val = yaw_rate[framenum - 1, nodeID]
                 # current_loss += torch.clamp(torch.abs(yaw_val) - 0.5, min=0)
-                current_loss += torch.clamp(torch.abs(yaw_val) - 0.7, min=0)
+                # current_loss += torch.clamp(torch.abs(yaw_val) - 0.7, min=0)
 
             loss_dynamics += current_loss
             counter += 1
@@ -294,7 +294,7 @@ def Gaussian2DLikelihood(outputs, targets, nodesPresent, obs_length, seq_length,
         loss_B /= 3  # 三个子指标平均
 
         # 总损失计算（动态权重平衡）
-        total_loss = loss_pos + loss_heading + 0.1 * loss_dynamics + 0.05 * loss_B + 0.3 * ade + 0.3 * fde
+        total_loss = loss_pos + loss_heading + 0.05 * loss_dynamics + 0.15 * loss_B + 1 * ade + 0.4 * fde
         # total_loss = loss_pos + loss_heading + 0.1 * loss_dynamics + 0.05 * loss_B
 
         # 调试输出（保留原始格式）

@@ -76,7 +76,7 @@ def main():
     parser.add_argument("--batch_size", type=int, default=1, help="Batch size")
 
     # Number of epochs
-    parser.add_argument("--num_epochs", type=int, default=100, help="number of epochs")
+    parser.add_argument("--num_epochs", type=int, default=3000, help="number of epochs")
 
     # Gradient value at which it should be clipped
     parser.add_argument(
@@ -92,7 +92,7 @@ def main():
 
     # Learning rate parameter
     parser.add_argument(
-        "--learning_rate", type=float, default=0.01, help="learning rate"
+        "--learning_rate", type=float, default=0.005, help="learning rate"
     )
     # Decay rate for the learning rate parameter
     parser.add_argument(
@@ -146,7 +146,16 @@ def train(args):
     if args.use_cuda:
         net = net.cuda()
 
-    optimizer = torch.optim.Adam(net.parameters(), weight_decay=1e-5)
+    optimizer = torch.optim.Adam(net.parameters(), lr=0.005, weight_decay=1e-5)
+
+    # 添加学习率调度
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer,
+        'min',
+        factor=0.5,
+        patience=5,
+        verbose=True
+    )
 
     # learning_rate = args.learning_rate
     logging.info("Training begin")
@@ -156,6 +165,20 @@ def train(args):
     for epoch in range(args.num_epochs):
         dataloader.reset_batch_pointer(valid=False)
         loss_epoch = 0
+
+        # 在每个epoch后调整学习率
+        scheduler.step(loss_epoch)
+
+        # 保存最佳模型
+        if loss_epoch < best_loss:
+            best_loss = loss_epoch
+            torch.save({
+                'epoch': epoch,
+                'state_dict': net.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+            }, checkpoint_path('best'))
+
+
 
         # For each batch
         # dataloader.num_batches = 10. 1 epoch have 10 batches
